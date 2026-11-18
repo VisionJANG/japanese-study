@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="単語帳">
+<meta name="theme-color" content="#FEFEFC">
+<title>単語帳 JLPT</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F4F6FA; --bg:#FFFFFF; --line:#E7EAF0; --rule:#E6E9EF; --card:#FFFFFF;
+    --ink:#111722; --ink-2:#464E5E; --ink-3:#7A8292;
+    --brand:#1E50A2; --brand-2:#2F66C6; --brand-soft:#EAF0FB;
+    --shu:#EE4B30; --ok:#12A15E;
+    --radius-lg:18px; --radius-md:12px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%; overscroll-behavior:none}
+  body{position:fixed; inset:0; font-family:"IBM Plex Sans KR",system-ui,-apple-system,sans-serif; color:var(--ink);
+    background:#FEFEFC; overflow:hidden; -webkit-font-smoothing:antialiased; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none}
+  button{font-family:inherit; color:inherit}
+  button:focus-visible{outline:2.5px solid #3B82F6; outline-offset:2px}
+  .jp{font-family:"Klee One",serif}
+
+  /* 실제 화면: 줄노트 배경 + 안전 영역 */
+  .screen{position:fixed; inset:0; overflow:hidden; background-color:#FEFEFC;
+    background-image:repeating-linear-gradient(to bottom, transparent 0, transparent 33px, rgba(80,120,190,.13) 33px, rgba(80,120,190,.13) 34px);
+    background-position:0 calc(var(--safe-top) + 8px);
+    --safe-top:calc(env(safe-area-inset-top, 0px) + 14px); --safe-bottom:calc(env(safe-area-inset-bottom, 0px) + 10px)}
+  .screen.compact{--safe-top:calc(env(safe-area-inset-top, 0px) + 10px); --safe-bottom:calc(env(safe-area-inset-bottom, 0px) + 6px)}
+  .view{position:absolute; inset:0; display:none; flex-direction:column; z-index:1;
+    padding:var(--safe-top) max(20px, calc(env(safe-area-inset-right, 0px) + 12px)) var(--safe-bottom) max(20px, calc(env(safe-area-inset-left, 0px) + 12px))}
+  .view.active{display:flex}
+
+  /* 처음 실행: 단어 파일 불러오기 */
+  .setup{justify-content:center; align-items:center; text-align:center; gap:18px}
+  .setup .brand .title{justify-content:center}
+  .setup-card{width:100%; max-width:420px; background:#fff; border-radius:20px; padding:22px 20px; text-align:left;
+    box-shadow:0 0 0 1px #E2E6ED, 0 12px 32px rgba(20,30,50,.08)}
+  .setup-card ol{margin:0; padding-left:20px; font-size:14px; line-height:1.75; color:var(--ink-2)}
+  .setup-card b{color:var(--ink)}
+  .setup-msg{min-height:20px; font-size:13px; color:var(--ink-3)}
+  .setup-msg.err{color:var(--shu)}
+  .tool-btn{border:0; background:none; color:var(--brand); font-size:14px; font-weight:600; cursor:pointer; padding:8px}
+  .data-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px}
+  .data-row .btn{flex:1 1 140px; height:44px; font-size:14px}
+  .fix-btn{flex:none; border:1px solid #E2E6ED; background:#fff; border-radius:10px; padding:8px 10px; font-size:12.5px; font-weight:700; color:var(--ink-2); cursor:pointer; white-space:nowrap}
+  .toast{position:absolute; left:50%; bottom:calc(var(--safe-bottom) + 84px); transform:translateX(-50%); z-index:9; background:var(--ink); color:#fff;
+    padding:10px 16px; border-radius:12px; font-size:13px; box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .data-note{margin:10px 0 0; font-size:12px; line-height:1.55; color:var(--ink-3)}
+  /* 스크롤바: 얇고 둥근 반투명 막대, 평소엔 거의 안 보이다가 마우스를 올리면 진해짐 */
+  .screen *{scrollbar-width:thin; scrollbar-color:rgba(20,30,50,.14) transparent}
+  .screen *:hover{scrollbar-color:rgba(20,30,50,.28) transparent}
+  .screen ::-webkit-scrollbar{width:10px; height:10px}
+  .screen ::-webkit-scrollbar-track{background:transparent}
+  .screen ::-webkit-scrollbar-thumb{background:rgba(20,30,50,.14); border-radius:10px; border:3px solid transparent; background-clip:padding-box}
+  .screen ::-webkit-scrollbar-thumb:hover{background-color:rgba(20,30,50,.3)}
+  .screen ::-webkit-scrollbar-corner{background:transparent}
+  /* 스크롤 영역 위·아래 끝은 부드럽게 흐려지게 */
+  .tabbed{-webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 calc(var(--safe-top) - 6px), #000 calc(100% - 40px), transparent 100%);
+          mask-image:linear-gradient(to bottom, transparent 0, #000 calc(var(--safe-top) - 6px), #000 calc(100% - 40px), transparent 100%)}
+
+  /* ================= 홈 (학습 탭) ================= */
+  .tabbed{padding-bottom:calc(var(--safe-bottom) + 66px) !important; overflow-y:auto}
+  .tabbed > *{flex-shrink:0}
+  .home-view{gap:18px}
+  /* 시작 화면 위쪽: 노트 표지처럼 제목 + 이중 괘선 */
+  .h-top{grid-area:top; padding:24px 0 18px; border-bottom:3px double rgba(80,120,190,.35);}
+  .brand .title{display:flex; align-items:center; gap:12px}
+  .brand .mark{font-family:"Klee One"; font-weight:600; font-size:42px; line-height:1; letter-spacing:.04em; color:var(--ink)}
+  .seal{display:inline-grid; place-items:center; height:24px; padding:0 7px; border:1.8px solid var(--shu); border-radius:6px; background:rgba(255,255,255,.6);
+    color:var(--shu); font:700 11px/1 "IBM Plex Sans KR"; letter-spacing:.08em; transform:rotate(-6deg) translateY(2px)}
+  .brand .lead{margin:16px 0 0; font-size:17px; font-weight:600; color:var(--ink); line-height:1.45; word-break:keep-all}
+  .brand .sub{margin:4px 0 0; font-size:14px; color:var(--ink-2); line-height:1.5; word-break:keep-all}
+
+  .sec{grid-area:sec; display:flex; align-items:baseline; justify-content:space-between; margin:6px 2px -6px; font-size:17px; font-weight:700}
+  .sec small{font-size:13px; font-weight:500; color:var(--ink-3)}
+  /* 레벨 = 노트에 링으로 걸어 둔 단어 카드 */
+  .decks{grid-area:decks; display:grid; grid-template-columns:1fr; gap:16px; align-content:start; padding:4px 6px 14px 12px}
+  .deck{position:relative; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:8px 16px;
+    padding:16px 18px 16px 50px; text-align:left; cursor:pointer; background:#fff; border:0; border-radius:14px;
+    border-left:5px solid var(--lv-strong);
+    box-shadow:0 0 0 1px #E4E8EF, 0 14px 18px -12px rgba(20,30,50,.28), 0 2px 4px rgba(20,30,50,.05);
+    transform-origin:0 50%; transition:transform .2s}
+  .deck:nth-child(odd){transform:rotate(-.7deg)}
+  .deck:nth-child(even){transform:rotate(.5deg)}
+  .deck:active{transform:rotate(0) translateY(1px)}
+  .deck .ring{position:absolute; left:14px; top:50%; width:14px; height:14px; margin-top:-7px; border-radius:50%;
+    background:#FEFEFC; box-shadow:inset 0 1px 2px rgba(0,0,0,.28)}
+  /* 은색 링: 구멍을 지나 카드 왼쪽 끝을 감쌈 */
+  .deck::before{content:""; position:absolute; z-index:2; left:-15px; top:50%; width:38px; height:22px; margin-top:-11px; border-radius:50%;
+    border:3px solid #B4BCC8; border-left-color:#8E98A7; border-bottom-color:#9AA4B2;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 1px 2px rgba(0,0,0,.18)}
+  .deck .lvname{grid-row:1/3; font-size:26px; font-weight:800; letter-spacing:-.01em; line-height:1}
+  .deck .lvname i{display:block; width:22px; height:4px; border-radius:2px; background:var(--lv-strong); margin-top:6px}
+  .deck .t{font-size:16px; font-weight:600}
+  .deck .t small{white-space:nowrap; margin-left:6px; font-size:13px; font-weight:500; color:var(--ink-3)}
+  .deck .pct{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums}
+  .deck .pct small{font-size:12px; font-weight:500; color:var(--ink-3); margin-right:6px}
+  .meter{grid-column:2/4; height:6px; border-radius:3px; background:#EDF1F8; overflow:hidden}
+  .meter i{display:block; height:100%; border-radius:3px; background:var(--lv-strong)}
+
+  /* 하단 탭 */
+  .tabbar{position:absolute; left:0; right:0; bottom:0; z-index:2; display:flex; height:calc(var(--safe-bottom) + 54px); padding:0 12px var(--safe-bottom);
+    background:rgba(254,254,252,.95); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); border-top:1px solid rgba(96,128,186,.18)}
+  .screen.in-quiz .tabbar{display:none}
+  .tab{flex:1; border:0; background:none; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    font-size:11px; font-weight:600; color:var(--ink-3)}
+  .tab svg{width:24px; height:24px}
+  .tab.on{color:var(--brand)}
+  .tab .dot{position:absolute; margin:-14px 0 0 22px; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:var(--shu); color:#fff; font-size:10px; line-height:16px}
+
+  /* 오답노트 / 기록 탭 공통 */
+  .page-title{padding-top:14px; font-size:28px; font-weight:700; letter-spacing:-.01em}
+  .page-sub{margin-top:-10px; font-size:14px; color:var(--ink-3)}
+  .panel{background:#fff; border:1px solid var(--line); border-radius:20px; padding:16px 18px; box-shadow:0 6px 18px rgba(60,55,40,.07)}
+  .panel h3{margin:0 0 6px; font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px}
+  .chip-lv{display:inline-grid; place-items:center; height:22px; padding:0 8px; border-radius:7px; font-size:12px; font-weight:700}
+  .note-tip{margin:-4px 2px 0; font-size:12.5px; line-height:1.5; color:var(--ink-3)}
+  .empty{padding:48px 12px; text-align:center; color:var(--ink-3); font-size:14px; line-height:1.6}
+  .note-cta{display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:20px; background:var(--brand); box-shadow:0 10px 24px rgba(30,80,162,.22); color:#fff}
+  .note-cta .n{font-size:28px; font-weight:700; font-variant-numeric:tabular-nums}
+  .note-cta .l{flex:1; font-size:13px; color:rgba(255,255,255,.7); line-height:1.45}
+  .note-cta button{height:42px; padding:0 16px; border:0; border-radius:12px; background:#fff; color:var(--brand); font-weight:700; font-size:14px; cursor:pointer}
+
+  .tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .tile{background:#fff; border:1px solid var(--line); border-radius:18px; padding:14px; box-shadow:0 6px 18px rgba(60,55,40,.07)}
+  .tile b{display:block; font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+  .tile span{font-size:12px; color:var(--ink-3)}
+  .week{display:grid; grid-template-columns:repeat(7,1fr); gap:10px; align-items:end; height:120px; margin-top:12px}
+  .week div{display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:6px; height:100%}
+  .week i{width:100%; max-width:26px; border-radius:7px 7px 3px 3px; background:#D5E0F4; min-height:4px}
+  .week .now i{background:var(--brand)}
+  .week span{font-size:11px; color:var(--ink-3)}
+  .week .now span{color:var(--brand); font-weight:700}
+  .lvrow{display:grid; grid-template-columns:36px 1fr auto; align-items:center; gap:12px; padding:9px 0; font-size:13px}
+  .lvrow b{font-weight:700} .lvrow .meter{grid-column:auto}
+  .lvrow span{color:var(--ink-3); font-variant-numeric:tabular-nums; min-width:68px; text-align:right}
+
+  /* iPhone 가로: 왼쪽 오늘 카드, 오른쪽 레벨 */
+  .compact .tabbar{height:calc(var(--safe-bottom) + 44px)}
+  .compact .tab{flex-direction:row; gap:6px; font-size:12px}
+  .compact .tab svg{width:20px; height:20px}
+  .compact .tab .dot{position:static; margin:0 0 0 2px}
+  .compact .tabbed{padding-bottom:calc(var(--safe-bottom) + 52px) !important}
+  .compact .home-view.active{display:grid; grid-template-columns:260px 1fr; grid-template-areas:"top decks"; column-gap:20px; align-items:center; padding-top:calc(var(--safe-top) + 4px)}
+  .compact .sec{display:none}
+  .compact .h-top{padding:0 0 14px}
+  .compact .brand .mark{font-size:32px}
+  .compact .brand .lead{margin-top:12px; font-size:14px}
+  .compact .brand .sub{font-size:12px}
+  .compact .decks{align-self:stretch; overflow-y:auto; padding:8px 8px 10px 14px; gap:14px}
+  .compact .deck{padding:11px 16px 11px 46px}
+  .compact .deck .lvname{font-size:22px}
+
+  /* iPad */
+  .wide .tabbed{padding-left:max(40px, calc(50% - 480px)) !important; padding-right:max(40px, calc(50% - 480px)) !important}
+  .wide .home-view.active{display:grid; grid-template-columns:1fr; grid-template-areas:"top" "sec" "decks"; row-gap:16px; align-content:start}
+  .wide .h-top{padding:48px 0 22px}
+  .wide .brand .mark{font-size:52px}
+  .wide .brand .lead{font-size:20px}
+  .wide .decks{grid-template-columns:1fr 1fr; gap:22px 28px}
+  .wide .deck{padding:18px 22px 18px 54px}
+  .wide .deck:nth-child(4n+2), .wide .deck:nth-child(4n+3){transform:rotate(.5deg)}
+  .wide .deck:nth-child(4n+1), .wide .deck:nth-child(4n){transform:rotate(-.6deg)}
+
+  /* ================= 퀴즈 화면 ================= */
+  .quiz-view{gap:14px}
+  .qhead{display:grid; grid-template-columns:44px 1fr 44px; align-items:center; height:44px}
+  .icon-btn{width:40px; height:40px; border:0; border-radius:50%; background:transparent; display:grid; place-items:center; cursor:pointer}
+  .icon-btn:hover{background:var(--brand-soft)}
+  .qtitle{text-align:center; font-weight:600; font-size:16px}
+  .qtitle span{color:var(--ink-2); font-weight:500; margin-left:4px}
+  .tally{justify-self:end; display:flex; gap:10px; font-size:14px; font-weight:600; font-variant-numeric:tabular-nums}
+  .tally span{display:inline-flex; align-items:center; gap:4px}
+  .tally svg{width:13px; height:13px}
+  .tally .t-ok{color:var(--ok)} .tally .t-ng{color:var(--shu)}
+
+  /* 이번 회차(최대 20단어) 진행 — 얇은 한 줄 */
+  .bar{height:3px; border-radius:2px; background:#E3EAF6; overflow:hidden; margin-top:-6px}
+  .bar i{display:block; height:100%; width:0; background:var(--brand); border-radius:2px; transition:width .35s ease}
+
+  .main{flex:1; display:flex; gap:16px; min-height:0}
+  .vertical .main{flex-direction:column}
+  .vertical .flash{flex:0 0 31%; transition:flex-basis .45s cubic-bezier(.3,.7,.2,1)}
+  .vertical .flash.flipped{flex-basis:var(--back-h, 52%)}
+
+  /* --- 단어 카드 (뒤집힘) --- */
+  .flash{flex:1; perspective:1200px; min-height:0; min-width:0}
+  .flash-inner{position:relative; width:100%; height:100%; transform-style:preserve-3d; transition:transform .55s cubic-bezier(.3,.7,.2,1)}
+  .flash.flipped .flash-inner{transform:rotateY(180deg)}
+  .face{position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; border-radius:var(--radius-lg);
+    background:var(--card); box-shadow:0 0 0 1px #E2E6ED, 0 1px 2px rgba(20,30,50,.04), 0 12px 32px rgba(20,30,50,.08);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; text-align:center; overflow:hidden}
+  .face .hole{position:absolute; top:16px; left:22px; width:14px; height:14px; border-radius:50%; background:var(--paper); box-shadow:inset 0 1px 2px rgba(0,0,0,.2)}
+  .face .chip{position:absolute; top:14px; right:16px; font-size:12px; font-weight:700; padding:3px 9px; border-radius:99px; background:var(--lv); color:var(--lv-d)}
+  .back{transform:rotateY(180deg)}
+  .face .rv-tag{position:absolute; top:14px; left:44px; display:none; align-items:center; gap:4px; height:22px; padding:0 8px; border-radius:99px;
+    background:#FFF0EC; color:var(--shu); font-size:11.5px; font-weight:700}
+  .face .rv-tag::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--shu)}
+  .face .rv-tag.on{display:inline-flex}
+  /* 앞면: 뜻 + 품사 (+ 같은 표기 구분 힌트) */
+  .f-hint{font-family:"Klee One"; font-size:16px; color:var(--ink-2); margin-bottom:10px; padding:4px 10px; border-radius:8px; background:var(--paper)}
+  .f-meaning{font-size:30px; font-weight:700; line-height:1.3; word-break:keep-all; letter-spacing:-.01em; max-width:92%}
+  .f-pos{font-size:13px; color:var(--ink-3); margin-top:8px}
+
+  /* 뒷면: 정답 + 예문 */
+  .back{justify-content:space-between; gap:14px; padding:40px 18px 18px}
+  .b-head{flex:1 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center}
+  .back{overflow-y:auto}
+  .b-reading{font-family:"Klee One"; font-size:15px; color:var(--ink-2); letter-spacing:.12em; margin-bottom:2px}
+  .b-kanji{font-family:"Klee One"; font-weight:600; font-size:50px; line-height:1.1; white-space:nowrap}
+  .b-meaning{font-size:16px; font-weight:600; color:var(--ink); margin-top:10px; word-break:keep-all}
+  .b-pos{font-size:12px; color:var(--ink-3); margin-top:3px}
+
+  /* 예문: 카드 안의 옅은 패널, 후리가나 + 표제어 형광펜 */
+  .b-ex{width:100%; text-align:left; background:var(--paper); border-radius:12px; padding:10px 14px 12px}
+  .ex-jp{margin:0; font-family:"Klee One"; font-size:17px; line-height:2.15; color:var(--ink); word-break:normal; line-break:strict}
+  .ex-jp ruby{ruby-align:center}
+  .ex-jp rt{font-family:"Klee One"; font-size:9.5px; color:var(--ink-3); letter-spacing:.02em}
+  .ex-jp mark{color:inherit; font-weight:600; padding:0 1px; border-radius:2px;
+    background:linear-gradient(transparent 58%, rgba(229,65,46,.20) 58%, rgba(229,65,46,.20) 92%, transparent 92%)}
+  .ex-ko{margin:0; font-size:13px; line-height:1.5; color:var(--ink-2)}
+
+  /* --- 필기 칸 --- */
+  .pad{flex:1; display:flex; flex-direction:column; gap:8px; min-width:0; min-height:0}
+  .sheet{flex:1; position:relative; border-radius:var(--radius-lg); background:#fff; overflow:hidden; display:grid; place-items:center; padding:12px;
+    box-shadow:0 0 0 1px #E2E6ED, 0 1px 2px rgba(20,30,50,.04), 0 12px 32px rgba(20,30,50,.08)}
+  /* 원고지처럼 한 칸에 한 글자 */
+  .cells{display:grid; grid-template-columns:repeat(var(--cols), var(--cell)); gap:var(--gap); justify-content:center; align-content:center}
+  .cell{position:relative; width:var(--cell); height:var(--cell); border-radius:10px; background:#FBFCFE;
+    box-shadow:inset 0 0 0 1.5px #D9E0EB;
+    background-image:
+      linear-gradient(to right, transparent calc(50% - .5px), #E6EBF3 calc(50% - .5px), #E6EBF3 calc(50% + .5px), transparent calc(50% + .5px)),
+      linear-gradient(to bottom, transparent calc(50% - .5px), #E6EBF3 calc(50% - .5px), #E6EBF3 calc(50% + .5px), transparent calc(50% + .5px))}
+  .cell.used{background-color:#fff; box-shadow:inset 0 0 0 1.5px #B9C6DA}
+  .cell canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:crosshair; border-radius:10px}
+  .sheet.locked .cell canvas{cursor:default}
+  .cell .no{position:absolute; left:6px; top:4px; font-size:10px; color:#B3BCCB; pointer-events:none}
+  .sheet .hint{position:absolute; left:0; right:0; bottom:6px; text-align:center; color:var(--ink-3); font-size:12px; pointer-events:none}
+  .stamp{position:absolute; inset:0; width:100%; height:100%; pointer-events:none}
+  .stamp path{fill:none; stroke:var(--shu); stroke-linecap:round; stroke-linejoin:round; opacity:.88}
+  .stamp.draw path{animation:pen .55s cubic-bezier(.5,0,.3,1) forwards}
+  .stamp.draw path + path{animation-duration:.3s; animation-delay:.32s}
+  .stamp.draw path:first-child:not(:only-child){animation-duration:.3s}
+  @keyframes pen{to{stroke-dashoffset:0}}
+
+  .tools{display:flex; justify-content:space-between; align-items:center}
+  .tool{display:inline-flex; align-items:center; gap:6px; border:0; background:none; font-size:13px; font-weight:600; color:var(--ink-2); cursor:pointer; padding:6px 4px; border-radius:6px}
+  .tool:disabled{opacity:.35; cursor:default}
+
+  /* --- 하단 --- */
+  .bottom{display:flex; flex-direction:column; gap:10px}
+  .verdict{display:none; align-items:center; gap:12px; padding:12px 14px; border-radius:var(--radius-md); background:var(--card);
+    border:1px solid var(--line); box-shadow:0 6px 18px rgba(20,30,50,.06)}
+  .verdict.show{display:flex}
+  .verdict .mark{width:34px; height:34px; flex:none}
+  .verdict .txt{flex:1; min-width:0}
+  .verdict .h{font-weight:700; font-size:16px}
+  .verdict.ok .h{color:var(--ok)} .verdict.ng .h{color:var(--shu)}
+  .verdict .s{font-size:13px; color:var(--ink-2); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .verdict .s .jp{color:var(--ink); font-weight:600}
+  .grade{display:flex; gap:6px}
+  .grade button{border:1px solid var(--rule); background:#fff; border-radius:10px; padding:8px 12px; font-size:13px; font-weight:600; cursor:pointer}
+  .grade .g-ok{color:var(--ok)} .grade .g-ng{color:var(--shu)}
+
+  .btn{border:0; border-radius:14px; height:54px; width:100%; font-size:17px; font-weight:600; cursor:pointer; transition:transform .1s, opacity .2s}
+  .btn:active{transform:scale(.98)}
+  .btn.primary{background:var(--brand); color:#fff; box-shadow:0 8px 20px rgba(30,80,162,.25)}
+  .btn.primary:disabled{box-shadow:none}
+  .btn.ghost{background:rgba(255,255,255,.85); color:var(--brand); box-shadow:inset 0 0 0 1.5px #C9D6EE}
+  .btn:disabled{opacity:.3; cursor:default}
+
+  /* --- 결과 --- */
+  .result{flex:1; display:none; flex-direction:column; gap:20px; min-height:0}
+  .result.show{display:flex}
+  .score{display:flex; align-items:flex-end; gap:16px; padding-top:8px}
+  .score .num{font-size:64px; font-weight:700; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+  .score .num small{font-size:26px; color:var(--ink-3); font-weight:600}
+  .score .msg{font-size:15px; color:var(--ink-2); padding-bottom:8px}
+  .review{flex:1; overflow-y:auto; background:var(--card); border-radius:var(--radius-lg); padding:6px 18px;
+    border:1px solid var(--line); box-shadow:0 6px 18px rgba(60,55,40,.07)}
+  .review h3{margin:12px 0 4px; font-size:14px; font-weight:600; color:var(--ink-2)}
+  .rv{display:flex; align-items:center; gap:16px; padding:12px 0; border-top:1px solid var(--rule)}
+  .rv:first-of-type{border-top:0}
+  .rv .kw{flex:1; min-width:0}
+  .rv .k{display:block; font-family:"Klee One"; font-weight:600; font-size:22px; line-height:1.25}
+  .rv .r{display:block; font-family:"Klee One"; color:var(--ink-2); font-size:13px}
+  .rv .m{max-width:58%; text-align:right; font-size:14px; word-break:keep-all}
+  .perfect{display:grid; place-items:center; height:100%; color:var(--ink-2); text-align:center; padding:24px 0}
+  .result .actions{display:flex; flex-direction:column; gap:10px}
+
+  /* --- 가로(높이 낮은 화면) --- */
+  .compact .view{padding-left:56px; padding-right:56px}
+  .compact .quiz-view{gap:8px}
+  .compact .qhead{height:36px}
+  .compact .bottom{flex-direction:row; align-items:stretch}
+  .compact .verdict{flex:2; padding:8px 12px}
+  .compact .bottom .btn{flex:1; height:auto; min-height:48px}
+  .compact .f-meaning{font-size:26px}
+  .compact .back{padding:30px 16px 12px; gap:8px}
+  .compact .b-reading{font-size:12px}
+  .compact .b-kanji{font-size:34px}
+  .compact .b-meaning{margin-top:4px; font-size:14px}
+  .compact .b-pos{display:none}
+  .compact .b-ex{padding:6px 12px 8px}
+  .compact .ex-jp{font-size:14px; line-height:1.95}
+  .compact .ex-jp rt{font-size:8px}
+  .compact .ex-ko{font-size:12px}
+  .compact .result{flex-direction:row}
+  .compact .result .left{width:240px; display:flex; flex-direction:column; justify-content:space-between; gap:12px}
+  .compact .score .num{font-size:52px}
+  .result .left{display:contents}
+  .compact .result .left{display:flex}
+
+  /* --- iPad --- */
+  .wide .view{padding-left:40px; padding-right:40px}
+  .wide .f-meaning{font-size:40px}
+  .wide .b-kanji{font-size:80px}
+  .wide .b-reading{font-size:20px}
+  .wide .b-meaning{font-size:20px; margin-top:14px}
+  .wide .b-pos{font-size:14px}
+  .wide .back{padding:48px 28px 28px}
+  .wide .b-ex{padding:16px 20px 18px; border-radius:16px}
+  .wide .ex-jp{font-size:22px}
+  .wide .ex-jp rt{font-size:12px}
+  .wide .ex-ko{font-size:15px}
+  .rv .m small{display:block; font-size:12px; color:var(--ink-3)}
+  .wide .bottom{flex-direction:row; align-items:stretch}
+  .wide .verdict{flex:2}
+  .wide .bottom .btn{flex:1}
+
+  @media (prefers-reduced-motion:reduce){
+    .flash-inner{transition:none}
+    .stamp.draw path{animation-duration:.01s}
+  }
+</style>
+</head>
+<body>
+<div class="screen vertical" id="screen">
+
+  <!-- 처음 실행: 단어 파일 불러오기 -->
+  <section class="view setup" id="setupView">
+    <div class="brand">
+      <div class="title"><span class="mark">単語帳</span><span class="seal">JLPT</span></div>
+      <p class="lead">단어 파일을 한 번만 불러오면 돼요</p>
+    </div>
+    <div class="setup-card">
+      <ol>
+        <li><b>words_personal.json</b> 파일을 iPhone의 「파일」 앱에 저장해 두세요.</li>
+        <li>아래 버튼을 눌러 그 파일을 고르세요.</li>
+        <li>단어는 이 iPhone 안에만 저장되고, 다음부터는 바로 시작해요.</li>
+      </ol>
+    </div>
+    <button class="btn primary" id="pickWords" style="max-width:420px">단어 파일 불러오기</button>
+    <div class="setup-msg" id="setupMsg"></div>
+  </section>
+
+  <section class="view home-view tabbed" id="homeView">
+    <div class="h-top">
+      <div class="brand">
+        <div class="title"><span class="mark">単語帳</span><span class="seal">JLPT</span></div>
+        <p class="lead">뜻을 보고 일본어로 써보세요</p>
+        <p class="sub">한자, 히라가나 모두 정답으로 인정돼요</p>
+      </div>
+    </div>
+    <div class="sec">레벨</div>
+    <div class="decks" id="decks"></div>
+  </section>
+
+  <section class="view tabbed" id="noteView" style="gap:16px"></section>
+  <section class="view tabbed" id="statsView" style="gap:14px"></section>
+
+      <section class="view quiz-view" id="quizView">
+        <div class="qhead">
+          <button class="icon-btn" id="back" aria-label="홈으로">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="qtitle" id="qtitle"></div>
+          <div class="tally" id="tally"></div>
+        </div>
+        <div class="bar"><i id="bar"></i></div>
+
+        <div class="main" id="main">
+          <div class="flash" id="flash">
+            <div class="flash-inner">
+              <div class="face front">
+                <span class="hole"></span><span class="chip" id="chipF"></span><span class="rv-tag" id="rvTagF">복습</span>
+                <div class="f-hint" id="hint2"></div>
+                <div class="f-meaning" id="meaning"></div>
+                <div class="f-pos" id="pos"></div>
+              </div>
+              <div class="face back">
+                <span class="hole"></span><span class="chip" id="chipB"></span><span class="rv-tag" id="rvTagB">복습</span>
+                <div class="b-head">
+                  <div class="b-reading" id="reading"></div>
+                  <div class="b-kanji" id="kanji"></div>
+                  <div class="b-meaning" id="meaningB"></div>
+                  <div class="b-pos" id="posB"></div>
+                </div>
+                <div class="b-ex">
+                  <p class="ex-jp" id="exJp"></p>
+                  <p class="ex-ko" id="exKo"></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pad">
+            <div class="sheet" id="sheet">
+              <div class="cells" id="cells"></div>
+              <div class="hint" id="hint">한 칸에 한 글자씩 쓰세요</div>
+              <svg class="stamp" id="stamp" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+            <div class="tools">
+              <button class="tool" id="undo">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>
+                한 획 지우기</button>
+              <button class="tool" id="clear">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+                전부 지우기</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom" id="bottom">
+          <div class="verdict" id="verdict"></div>
+          <button class="btn primary" id="action">제출</button>
+        </div>
+
+        <div class="result" id="result">
+          <div class="left">
+            <div class="score">
+              <div class="num" id="scoreNum"></div>
+              <div class="msg" id="scoreMsg"></div>
+            </div>
+            <div class="actions" id="actions"></div>
+          </div>
+          <div class="review" id="review"></div>
+        </div>
+      </section>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab on" data-tab="homeView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="13" height="17" rx="2.5"/><path d="M8 8h5M8 12h5"/><path d="M20 7v12.5a1.5 1.5 0 0 1-1.5 1.5H8"/></svg>학습</button>
+    <button class="tab" data-tab="noteView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M9 10l6 6M15 10l-6 6"/></svg>오답노트<span class="dot" id="noteDot"></span></button>
+    <button class="tab" data-tab="statsView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>기록</button>
+  </nav>
+</div>
+
+<input type="file" id="fileWords" accept=".json,application/json" hidden>
+<input type="file" id="fileBackup" accept=".json,application/json" hidden>
+
+<script src="recognizer.js"></script>
+<script src="app.js"></script>
+<script src="patterns.js" defer></script>
+</body>
+</html>

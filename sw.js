@@ -1,0 +1,29 @@
+/* 오프라인 동작: 앱 파일은 설치 때 저장, 글꼴은 처음 쓸 때 저장 */
+const VERSION = "tango-v1";
+const SHELL = ["./", "index.html", "app.js", "recognizer.js", "patterns.js", "manifest.webmanifest",
+               "icon-180.png", "icon-192.png", "icon-512.png"];
+
+self.addEventListener("install", e => {
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+self.addEventListener("activate", e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k))))
+    .then(() => self.clients.claim()));
+});
+self.addEventListener("fetch", e => {
+  const url = new URL(e.request.url);
+  if (e.request.method !== "GET") return;
+  // 글꼴(Google Fonts): 저장된 것 먼저, 없으면 받아서 저장
+  if (url.hostname.endsWith("fonts.googleapis.com") || url.hostname.endsWith("fonts.gstatic.com")) {
+    e.respondWith(caches.open(VERSION).then(c => c.match(e.request).then(hit => hit ||
+      fetch(e.request).then(res => { c.put(e.request, res.clone()); return res; }))));
+    return;
+  }
+  // 앱 파일: 저장된 것 먼저 (오프라인에서도 열림), 뒤에서 새 버전 확인
+  if (url.origin === location.origin) {
+    e.respondWith(caches.open(VERSION).then(c => c.match(e.request, {ignoreSearch: true}).then(hit => {
+      const net = fetch(e.request).then(res => { if (res.ok) c.put(e.request, res.clone()); return res; }).catch(() => hit);
+      return hit || net;
+    })));
+  }
+});
