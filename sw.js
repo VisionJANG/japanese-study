@@ -1,10 +1,10 @@
-/* 오프라인 동작: 앱 파일은 설치 때 저장, 글꼴은 처음 쓸 때 저장 */
-const VERSION = "tango-v2";
+/* 오프라인 동작: 앱 파일은 인터넷이 되면 최신으로 받고 저장, 안 되면 저장본 사용 */
+const VERSION = "tango-v4";
 const SHELL = ["./", "index.html", "app.js", "segment.js", "recognizer.js", "patterns.js", "manifest.webmanifest",
                "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, {cache: "reload"})))).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k))))
@@ -19,11 +19,10 @@ self.addEventListener("fetch", e => {
       fetch(e.request).then(res => { c.put(e.request, res.clone()); return res; }))));
     return;
   }
-  // 앱 파일: 저장된 것 먼저 (오프라인에서도 열림), 뒤에서 새 버전 확인
+  // 앱 파일: 인터넷이 되면 항상 최신 파일, 안 되면 저장된 파일
   if (url.origin === location.origin) {
-    e.respondWith(caches.open(VERSION).then(c => c.match(e.request, {ignoreSearch: true}).then(hit => {
-      const net = fetch(e.request).then(res => { if (res.ok) c.put(e.request, res.clone()); return res; }).catch(() => hit);
-      return hit || net;
-    })));
+    e.respondWith(caches.open(VERSION).then(c =>
+      fetch(e.request, {cache: "no-cache"}).then(res => { if (res.ok) c.put(e.request, res.clone()); return res; })
+        .catch(() => c.match(e.request, {ignoreSearch: true}))));
   }
 });

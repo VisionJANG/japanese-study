@@ -246,9 +246,9 @@ function pt(e){
 cv.addEventListener("pointerdown", e => {
   if (S.phase !== "answer") return;
   e.preventDefault(); cv.setPointerCapture(e.pointerId);
-  drawing = [pt(e)]; S.strokes.push(drawing); redraw(); syncTools();
+  drawing = [pt(e)]; drawing.t = [Date.now()]; S.strokes.push(drawing); redraw(); syncTools();
 });
-cv.addEventListener("pointermove", e => { if (!drawing) return; e.preventDefault(); drawing.push(pt(e)); redraw(); });
+cv.addEventListener("pointermove", e => { if (!drawing) return; e.preventDefault(); drawing.push(pt(e)); drawing.t.push(Date.now()); redraw(); });
 ["pointerup", "pointercancel"].forEach(t => cv.addEventListener(t, () => { drawing = null; }));
 function syncTools(){
   const has = S.strokes.length > 0, locked = S.phase !== "answer";
@@ -274,8 +274,54 @@ function answers(w){
   const set = new Set([w.word, w.reading, ...(w.accept || [])].filter(Boolean));
   return [...set].map(normStr).filter(a => a.length);
 }
-function gradeHandwriting(w){
-  const r = HWSEG.match(S.strokes, answers(w));
+/* 1순위: Google 손글씨 인식 (여러 글자를 통째로 인식)
+   2순위: 기기 안 인식 (인터넷이 없거나 Google 응답이 없을 때만) */
+const GOOGLE_HW = [
+  ["https://inputtools.google.com/request?itc=ja-t-i0-handwrit&app=translate", "text/plain;charset=UTF-8"],
+  ["https://inputtools.google.com/request?itc=ja-t-i0-handwrit&app=translate", "application/json; charset=UTF-8"],
+  ["https://www.google.com/inputtools/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8", "text/plain;charset=UTF-8"],
+  ["https://www.google.com/inputtools/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8", "application/json; charset=UTF-8"],
+];
+async function googleRecognize(strokes){
+  const ink = strokes.map(s => [s.map(p => Math.round(p[0])), s.map(p => Math.round(p[1])), s.t ? s.t.map(t => t - s.t[0]) : s.map((_, i) => i * 16)]);
+  const body = JSON.stringify({app_version:0.4, api_level:"537.36", device:navigator.userAgent, input_type:0, options:"enable_pre_space",
+    requests:[{writing_guide:{writing_area_width:Math.round(S.base[0]), writing_area_height:Math.round(S.base[1])},
+               pre_context:"", max_num_results:10, max_completions:0, language:"ja", ink}]});
+  // 지난번에 성공한 방식부터 시도
+  let first = +(localStorage.getItem("jlpt-hw-ep") || 0);
+  const order = [first, ...GOOGLE_HW.keys()].filter((v, i, a) => a.indexOf(v) === i && GOOGLE_HW[v]);
+  for (const k of order){
+    const [url, type] = GOOGLE_HW[k];
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 3500);
+    try {
+      const res = await fetch(url, {method:"POST", mode:"cors", credentials:"omit", signal:ctl.signal, headers:{"Content-Type":type}, body});
+      const j = await res.json();
+      if (j[0] === "SUCCESS" && j[1] && j[1][0] && Array.isArray(j[1][0][1])){
+        localStorage.setItem("jlpt-hw-ep", k);
+        return j[1][0][1];
+      }
+    } catch(e) {
+      if (e.name === "AbortError" && !navigator.onLine) break;
+    } finally { clearTimeout(timer); }
+  }
+  return null;
+}
+async function waitLocal(){
+  if (window.KanjiCanvas && KanjiCanvas.refPatterns.length) return;
+  await new Promise(r => { const t = setInterval(() => { if (window.KanjiCanvas && KanjiCanvas.refPatterns.length){ clearInterval(t); r(); } }, 100); });
+}
+async function gradeHandwriting(w){
+  const ans = answers(w), key = a => a.join("");
+  const keys = new Set(ans.map(key));
+  const cands = await googleRecognize(S.strokes);
+  if (cands && cands.length){
+    const hit = cands.find(c => keys.has(key(normStr(c))));
+    S.recog = hit ? w.word : cands[0];
+    return !!hit;
+  }
+  alertBox(navigator.onLine ? "온라인 인식에 연결하지 못해 기기 안 인식으로 채점했어요" : "인터넷이 없어 기기 안 인식으로 채점했어요");
+  await waitLocal();
+  const r = HWSEG.match(S.strokes, ans);
   S.recog = r.ok ? w.word : (r.guess || "？");
   return r.ok;
 }
@@ -297,14 +343,10 @@ function undoWrong(w){   // 「맞게 썼어요」: 인식 오류 바로잡기
 }
 
 async function submit(){
-  if (!window.KanjiCanvas || !KanjiCanvas.refPatterns.length){
-    $("action").disabled = true; $("action").textContent = "인식 준비 중…";
-    await new Promise(r => { const t = setInterval(() => { if (KanjiCanvas.refPatterns.length){ clearInterval(t); r(); } }, 100); });
-  }
   const w = S.deck[S.idx];
   S.phase = "grading"; syncTools(); $("action").disabled = true; $("action").textContent = "채점 중…";
   await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
-  const ok = gradeHandwriting(w);
+  const ok = await gradeHandwriting(w);
   S.marks[S.idx] = ok; S.phase = "checked";
   recordResult(w, ok);
   $("flash").classList.add("flipped");
@@ -437,7 +479,11 @@ function renderResult(){
 /* ================= 시작 ================= */
 (async function boot(){
   applyMode();
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator){
+    const had = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (had && !window.__reloaded){ window.__reloaded = true; location.reload(); } });
+    navigator.serviceWorker.register("sw.js", {updateViaCache:"none"}).then(r => r.update()).catch(() => {});
+  }
   let words = null;
   try { words = await DB.get("words"); } catch(_) {}
   if (words && words.length){ useWords(words); show("homeView"); }
