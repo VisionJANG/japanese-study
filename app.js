@@ -15,11 +15,10 @@ const LV = {   // c: 옅은 바탕, s: 진행 막대, d: 글자
   N2:{t:"중상급", c:"#E0ECFF", s:"#3A7DF0", d:"#1F5FC8"},
   N1:{t:"상급",   c:"#EEE6FF", s:"#8B5CF6", d:"#6A3FD6"}
 };
-const CELL_LAYOUT = { vertical:[3, 3], compact:[4, 2], wide:[5, 2] };   // [열, 행]
 
 const $ = id => document.getElementById(id);
 const S = {mode:"vertical", tab:"homeView", level:null, title:"", deck:[], idx:0, marks:[], phase:"answer",
-           review:new Set(), isRetry:false, cells:[], order:[], recog:"", words:[], byId:{}, bank:{}};
+           review:new Set(), isRetry:false, strokes:[], base:null, recog:"", words:[], byId:{}, bank:{}};
 
 /* ================= 저장소 ================= */
 const DB = {
@@ -45,9 +44,9 @@ function useWords(words){
 function applyMode(){
   const w = innerWidth, h = innerHeight;
   const mode = h < 520 && w > h ? "compact" : (w >= 700 ? "wide" : "vertical");
-  if (mode !== S.mode){ $("screen").classList.remove(S.mode); S.mode = mode; buildCells(); }
+  if (mode !== S.mode){ $("screen").classList.remove(S.mode); S.mode = mode; }
   $("screen").classList.add(mode);
-  layoutCells();
+  resizeCanvas();
 }
 addEventListener("resize", applyMode);
 addEventListener("orientationchange", () => setTimeout(applyMode, 200));
@@ -57,7 +56,7 @@ function show(view){
   ["setupView","homeView","noteView","statsView","quizView"].forEach(v => $(v).classList.toggle("active", v === view));
   $("screen").classList.toggle("in-quiz", view === "quizView" || view === "setupView");
   $("tabbar").style.display = view === "setupView" ? "none" : "";
-  if (view === "quizView" || view === "setupView") return requestAnimationFrame(layoutCells);
+  if (view === "quizView" || view === "setupView") return requestAnimationFrame(resizeCanvas);
   S.tab = view;
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === view));
   renderHome(); renderNote(); renderStats();
@@ -206,83 +205,61 @@ function start(lv, words, title){
 }
 function newWord(){
   S.phase = "answer"; S.recog = "";
-  S.cells = S.cells.map(() => []); S.order = [];
+  S.strokes = []; S.base = null;
   clearStamp(); $("flash").classList.remove("flipped"); $("flash").style.removeProperty("--back-h");
-  drawAllCells(); updateUI();
+  redraw(); syncTools(); updateUI();
 }
 
-/* ================= 원고지 칸 (손글씨 입력) ================= */
-function buildCells(){
-  const [c, r] = CELL_LAYOUT[S.mode] || CELL_LAYOUT.vertical;
-  const n = c * r, wrap = $("cells");
-  const old = S.cells || [];
-  S.cells = Array.from({length:n}, (_, i) => old[i] || []);
-  S.order = S.order.filter(i => i < n);
-  wrap.style.setProperty("--cols", c);
-  wrap.innerHTML = "";
-  for (let i = 0; i < n; i++){
-    const cell = document.createElement("div"); cell.className = "cell";
-    cell.innerHTML = `<span class="no">${i + 1}</span><canvas></canvas>`;
-    wrap.appendChild(cell);
-    bindCell(cell.querySelector("canvas"), i);
-  }
-  layoutCells();
+/* ================= 필기 칸 (손글씨 입력) ================= */
+const cv = $("canvas"), ctx = cv.getContext("2d");
+let drawing = null, view = {s:1, ox:0, oy:0};
+function resizeCanvas(){
+  const dpr = devicePixelRatio || 1;
+  if (!cv.offsetWidth) return;
+  cv.width = cv.offsetWidth * dpr; cv.height = cv.offsetHeight * dpr;
+  redraw();
 }
-function layoutCells(){
-  const sheet = $("sheet"), wrap = $("cells");
-  if (!sheet || !wrap.children.length) return;
-  const [c, r] = CELL_LAYOUT[S.mode] || CELL_LAYOUT.vertical;
-  const W = sheet.clientWidth - 24, H = sheet.clientHeight - 24 - 14;
-  if (W <= 0 || H <= 0) return;
-  const gap = Math.max(6, Math.min(12, W * 0.025));
-  const size = Math.floor(Math.min((W - gap * (c - 1)) / c, (H - gap * (r - 1)) / r));
-  wrap.style.setProperty("--gap", gap + "px");
-  wrap.style.setProperty("--cell", Math.max(size, 30) + "px");
-  [...wrap.querySelectorAll("canvas")].forEach((cv, i) => sizeCanvas(cv, i));
-}
-function sizeCanvas(cv, i){
-  const dpr = devicePixelRatio || 1, w = cv.offsetWidth, h = cv.offsetHeight;
-  if (!w) return;
-  cv.width = w * dpr; cv.height = h * dpr;
-  drawCell(i);
-}
-function drawCell(i){
-  const cv = $("cells").querySelectorAll("canvas")[i]; if (!cv) return;
-  const ctx = cv.getContext("2d"), w = cv.width, h = cv.height;
-  ctx.clearRect(0, 0, w, h);
-  ctx.strokeStyle = "#1D2433"; ctx.lineCap = "round"; ctx.lineJoin = "round";
-  ctx.lineWidth = Math.max(3, w * 0.055);
-  for (const s of S.cells[i] || []){
+/* 획은 처음 쓴 크기 기준 좌표로 저장 → 칸 크기가 바뀌면 비율 유지한 채 축소해서 다시 그림 */
+function redraw(){
+  const cw = cv.offsetWidth, ch = cv.offsetHeight;
+  if (!cw || !ch) return;
+  if (!S.base || !S.strokes.length) S.base = [cw, ch];
+  const sc = Math.min(cw / S.base[0], ch / S.base[1], 1);
+  view = {s:sc, ox:(cw - S.base[0] * sc) / 2, oy:(ch - S.base[1] * sc) / 2};
+  const dpr = devicePixelRatio || 1;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.setTransform(dpr * sc, 0, 0, dpr * sc, dpr * view.ox, dpr * view.oy);
+  ctx.strokeStyle = "#1D2433"; ctx.lineWidth = 7; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const s of S.strokes){
     ctx.beginPath();
-    s.forEach((p, k) => k ? ctx.lineTo(p[0] * w, p[1] * h) : ctx.moveTo(p[0] * w, p[1] * h));
-    if (s.length === 1) ctx.lineTo(s[0][0] * w + .5, s[0][1] * h);
+    s.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    if (s.length === 1) ctx.lineTo(s[0][0] + .1, s[0][1]);
     ctx.stroke();
   }
-  cv.parentElement.classList.toggle("used", !!(S.cells[i] && S.cells[i].length));
 }
-function drawAllCells(){ S.cells.forEach((_, i) => drawCell(i)); syncTools(); }
-function bindCell(cv, i){
-  let cur = null;
-  const pt = e => { const r = cv.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
-  cv.addEventListener("pointerdown", e => {
-    if (S.phase !== "answer") return;
-    e.preventDefault(); cv.setPointerCapture(e.pointerId);
-    cur = [pt(e)]; S.cells[i].push(cur); S.order.push(i); drawCell(i); syncTools();
-  });
-  cv.addEventListener("pointermove", e => { if (!cur) return; e.preventDefault(); cur.push(pt(e)); drawCell(i); });
-  const end = () => { cur = null; };
-  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+function pt(e){
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * cv.offsetWidth, y = (e.clientY - r.top) / r.height * cv.offsetHeight;
+  return [(x - view.ox) / view.s, (y - view.oy) / view.s];
 }
+cv.addEventListener("pointerdown", e => {
+  if (S.phase !== "answer") return;
+  e.preventDefault(); cv.setPointerCapture(e.pointerId);
+  drawing = [pt(e)]; S.strokes.push(drawing); redraw(); syncTools();
+});
+cv.addEventListener("pointermove", e => { if (!drawing) return; e.preventDefault(); drawing.push(pt(e)); redraw(); });
+["pointerup", "pointercancel"].forEach(t => cv.addEventListener(t, () => { drawing = null; }));
 function syncTools(){
-  const has = S.order.length > 0, locked = S.phase !== "answer";
+  const has = S.strokes.length > 0, locked = S.phase !== "answer";
   $("undo").disabled = $("clear").disabled = locked || !has;
   $("sheet").classList.toggle("locked", locked);
-  $("hint").style.visibility = has || locked ? "hidden" : "visible";
+  $("hint").style.display = has || locked ? "none" : "grid";
   if (S.phase === "answer") $("action").disabled = !has;
 }
-$("undo").onclick = () => { const i = S.order.pop(); if (i !== undefined){ S.cells[i].pop(); drawCell(i); } syncTools(); };
-$("clear").onclick = () => { S.cells = S.cells.map(() => []); S.order = []; drawAllCells(); };
-new ResizeObserver(() => layoutCells()).observe($("sheet"));
+$("undo").onclick = () => { S.strokes.pop(); redraw(); syncTools(); };
+$("clear").onclick = () => { S.strokes = []; redraw(); syncTools(); };
+new ResizeObserver(() => resizeCanvas()).observe($("sheet"));
 
 /* ================= 채점 ================= */
 const SMALL = {"ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お","っ":"つ","ゃ":"や","ゅ":"ゆ","ょ":"よ","ゎ":"わ","ゕ":"か","ゖ":"け"};
@@ -298,14 +275,9 @@ function answers(w){
   return [...set].map(normStr).filter(a => a.length);
 }
 function gradeHandwriting(w){
-  const filled = S.cells.map((s, i) => [s, i]).filter(([s]) => s.length);
-  const cands = filled.map(([s]) => HW.recognize(s).slice(0, TOP_N).map(normChar));
-  let match = null;
-  for (const a of answers(w)){
-    if (a.length === cands.length && a.every((ch, i) => cands[i].includes(ch))){ match = a; break; }
-  }
-  S.recog = match ? w.word : cands.map(c => c[0] || "？").join("");
-  return !!match;
+  const r = HWSEG.match(S.strokes, answers(w));
+  S.recog = r.ok ? w.word : (r.guess || "？");
+  return r.ok;
 }
 
 function recordResult(w, ok){
@@ -330,6 +302,8 @@ async function submit(){
     await new Promise(r => { const t = setInterval(() => { if (KanjiCanvas.refPatterns.length){ clearInterval(t); r(); } }, 100); });
   }
   const w = S.deck[S.idx];
+  S.phase = "grading"; syncTools(); $("action").disabled = true; $("action").textContent = "채점 중…";
+  await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
   const ok = gradeHandwriting(w);
   S.marks[S.idx] = ok; S.phase = "checked";
   recordResult(w, ok);
@@ -412,7 +386,7 @@ function updateUI(){
   const v = $("verdict"), act = $("action");
   if (S.phase === "answer"){
     v.className = "verdict";
-    act.textContent = "제출"; act.disabled = !S.order.length;
+    act.textContent = "제출"; act.disabled = !S.strokes.length;
   } else {
     const ok = S.marks[S.idx];
     v.className = "verdict show " + (ok ? "ok" : "ng");
@@ -462,7 +436,7 @@ function renderResult(){
 
 /* ================= 시작 ================= */
 (async function boot(){
-  applyMode(); buildCells();
+  applyMode();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   let words = null;
   try { words = await DB.get("words"); } catch(_) {}

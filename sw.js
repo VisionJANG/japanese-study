@@ -1,6 +1,6 @@
 /* 오프라인 동작: 앱 파일은 설치 때 저장, 글꼴은 처음 쓸 때 저장 */
-const VERSION = "tango-v1";
-const SHELL = ["./", "index.html", "app.js", "recognizer.js", "patterns.js", "manifest.webmanifest",
+const VERSION = "tango-v2";
+const SHELL = ["./", "index.html", "app.js", "segment.js", "recognizer.js", "patterns.js", "manifest.webmanifest",
                "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", e => {
