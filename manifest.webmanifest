@@ -1,7 +1,7 @@
 {
-  "name": "単語帳 JLPT",
-  "short_name": "単語帳",
-  "description": "뜻을 보고 일본어로 직접 써보는 JLPT 단어장",
+  "name": "VOCABOX — JLPT",
+  "short_name": "VOCABOX",
+  "description": "단어장 · 손글씨 쓰기 · 시험으로 익히는 JLPT",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

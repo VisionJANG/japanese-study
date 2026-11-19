@@ -1,4 +1,4 @@
-/* 単語帳 JLPT — 웹앱 본체
+/* VOCABOX (JLPT) — 웹앱 본체
    - 단어 데이터: 처음 한 번 파일에서 불러와 IndexedDB에 저장 (웹 페이지에는 단어 데이터 없음)
    - 학습 기록: localStorage
    - 손글씨 채점: KanjiCanvas (iPhone 안에서만 동작) — 한 칸에 한 글자 */
@@ -8,20 +8,20 @@ const ROUND = 20;          // 한 회차 문제 수
 const REVIEW_MAX = 4;      // 레벨 학습에 섞는 오답 단어 수 (최대)
 const TOP_N = 10;          // 글자마다 인식 후보 몇 개까지 정답으로 볼지
 const LEVELS = ["N5", "N4", "N3", "N2", "N1"];
-const LV = {   // c: 옅은 바탕, s: 진행 막대, d: 글자
-  N5:{t:"입문",   c:"#FFF4CF", s:"#F5B400", d:"#9A6B00"},
-  N4:{t:"초급",   c:"#FFE5E0", s:"#F2624C", d:"#C23D29"},
-  N3:{t:"중급",   c:"#DBF6EA", s:"#17B07A", d:"#0B7D55"},
-  N2:{t:"중상급", c:"#E0ECFF", s:"#3A7DF0", d:"#1F5FC8"},
-  N1:{t:"상급",   c:"#EEE6FF", s:"#8B5CF6", d:"#6A3FD6"}
+const LV = {   // c: 옅은 바탕, s: 진행 막대, d: 글자, p: 포스트잇 종이색
+  N5:{t:"입문",   c:"#FFF4CF", s:"#F5B400", d:"#9A6B00", p:"#FFEB8A"},
+  N4:{t:"초급",   c:"#FFE5E0", s:"#F2624C", d:"#C23D29", p:"#FFCFC6"},
+  N3:{t:"중급",   c:"#DBF6EA", s:"#17B07A", d:"#0B7D55", p:"#C8F0D8"},
+  N2:{t:"중상급", c:"#E0ECFF", s:"#3A7DF0", d:"#1F5FC8", p:"#CFE2FF"},
+  N1:{t:"상급",   c:"#EEE6FF", s:"#8B5CF6", d:"#6A3FD6", p:"#E4D8FF"}
 };
 
 const $ = id => document.getElementById(id);
 const MODES = {
-  jp:  {lead:"뜻을 보고 일본어로 써보세요",       sub:"한자, 히라가나 모두 정답으로 인정돼요", title:null},
-  ko:  {lead:"일본어를 보고 뜻을 한국어로 써보세요", sub:"뜻이 여러 개면 하나만 맞게 써도 정답이에요", title:"뜻 쓰기"},
-  book:{lead:"레벨별 단어장",                   sub:"카드를 누르면 뜻과 예문 해석이 나와요", title:"단어장"},
-  test:{lead:"JLPT 문제처럼 풀어보세요",          sub:"읽는 법 · 한자 표기 · 빈칸 채우기, 4개 중 하나를 고르세요", title:"시험"}
+  book:{desc:"카드를 누르면 뜻과 예문 해석이 나와요", title:"단어장"},
+  jp:  {desc:"뜻을 보고 한자나 히라가나로 써보세요", title:null},
+  ko:  {desc:"일본어를 보고 뜻을 한국어로 써보세요", title:"뜻 쓰기"},
+  test:{desc:"JLPT처럼 4개 중 정답을 고르는 문제예요", title:"시험"}
 };
 const S = {qm:"jp", noteMode:null, mode:"vertical", tab:"homeView", level:null, title:"", deck:[], idx:0, marks:[], phase:"answer",
            review:new Set(), isRetry:false, strokes:[], base:null, recog:"", words:[], byId:{}, bank:{}};
@@ -36,12 +36,12 @@ const DB = {
 const REC_KEY = "jlpt-rec-v1";
 const lvMap = v => ({N5:v(),N4:v(),N3:v(),N2:v(),N1:v()});
 const emptyRec = () => ({learned:lvMap(() => []), wrong:[], learnedKo:lvMap(() => []), wrongKo:[], learnedTest:lvMap(() => []), wrongTest:[], bookPos:lvMap(() => 0),
-                         mode:"jp", ok:0, total:0, days:{}, lastLevel:"N5"});
+                         mode:"book", ok:0, total:0, days:{}, lastLevel:"N5"});
 let REC = emptyRec();
 function loadRec(d){
   const e = emptyRec(), r = Object.assign(e, d || {});
   ["learned","learnedKo","learnedTest","bookPos"].forEach(k => r[k] = Object.assign(emptyRec()[k], (d || {})[k] || {}));
-  if (!MODES[r.mode]) r.mode = "jp";
+  if (!MODES[r.mode]) r.mode = "book";
   return r;
 }
 try { REC = loadRec(JSON.parse(localStorage.getItem(REC_KEY) || "{}")); } catch(e) {}
@@ -107,7 +107,7 @@ $("fileWords").onchange = async e => {
 const learnedCount = lv => REC.learned[lv].length;
 function renderHome(){
   const m = REC.mode;
-  $("homeLead").textContent = MODES[m].lead; $("homeSub").textContent = MODES[m].sub;
+  $("homeSub").textContent = MODES[m].desc;
   document.querySelectorAll("#modeSeg button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
   $("decks").innerHTML = "";
   LEVELS.forEach(lv => {
@@ -115,11 +115,11 @@ function renderHome(){
     const n = m === "book" ? Math.min(REC.bookPos[lv], total) : Math.min(learnedOf(m)[lv].length, total), pct = Math.round(n / total * 100);
     const b = document.createElement("button");
     b.className = "deck";
-    b.style.setProperty("--lv", LV[lv].c); b.style.setProperty("--lv-strong", LV[lv].s); b.style.setProperty("--lv-d", LV[lv].d);
-    b.innerHTML = `<span class="ring"></span><div class="lvname">${lv}<i></i></div>
-      <div class="t">${LV[lv].t}<small>${total.toLocaleString()}단어</small></div>
-      <div class="pct"><small>${n.toLocaleString()}개 ${m === "book" ? "봄" : "학습"}</small>${pct}%</div>
-      <div class="meter"><i style="width:${Math.max(pct, n ? 2 : 0)}%"></i></div>`;
+    b.style.setProperty("--lv", LV[lv].c); b.style.setProperty("--lv-strong", LV[lv].s); b.style.setProperty("--lv-d", LV[lv].d); b.style.setProperty("--pi", LV[lv].p);
+    b.innerHTML = `<div><div class="lvname">${lv}</div>
+      <div class="t">${LV[lv].t}<small>${total.toLocaleString()}단어</small></div></div>
+      <div class="foot"><div class="pct"><small>${n.toLocaleString()}개 ${m === "book" ? "봄" : "학습"}</small>${pct}%</div>
+      <div class="meter"><i style="width:${Math.max(pct, n ? 2 : 0)}%"></i></div></div>`;
     b.onclick = () => m === "book" ? startBook(lv) : start(lv, null, "", m);
     $("decks").appendChild(b);
   });

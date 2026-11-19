@@ -1,5 +1,5 @@
 /* 오프라인 동작: 앱 파일은 인터넷이 되면 최신으로 받고 저장, 안 되면 저장본 사용 */
-const VERSION = "tango-v6";
+const VERSION = "tango-v7";
 const SHELL = ["./", "index.html", "app.js", "segment.js", "recognizer.js", "patterns.js", "manifest.webmanifest",
                "icon-180.png", "icon-192.png", "icon-512.png"];
 

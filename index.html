@@ -6,9 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="単語帳">
+<meta name="apple-mobile-web-app-title" content="VOCABOX">
 <meta name="theme-color" content="#FEFEFC">
-<title>単語帳 JLPT</title>
+<title>VOCABOX — JLPT</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
@@ -69,11 +69,11 @@
           mask-image:linear-gradient(to bottom, transparent 0, #000 calc(var(--safe-top) - 6px), #000 calc(100% - 40px), transparent 100%)}
 
   /* ================= 홈 (학습 탭) ================= */
-  .tabbed{padding-bottom:calc(var(--safe-bottom) + 66px) !important; overflow-y:auto}
+  .tabbed{padding-bottom:calc(var(--safe-bottom) + 84px) !important; overflow-y:auto}
   .tabbed > *{flex-shrink:0}
   .home-view{gap:18px}
   /* 시작 화면 위쪽: 노트 표지처럼 제목 + 이중 괘선 */
-  .h-top{grid-area:top; padding:24px 0 18px; border-bottom:3px double rgba(80,120,190,.35);}
+  .h-top{grid-area:top; padding:24px 0 6px}
   .brand .title{display:flex; align-items:center; gap:12px}
   .brand .mark{font-family:"Klee One"; font-weight:600; font-size:42px; line-height:1; letter-spacing:.04em; color:var(--ink)}
   .seal{display:inline-grid; place-items:center; height:24px; padding:0 7px; border:1.8px solid var(--shu); border-radius:6px; background:rgba(255,255,255,.6);
@@ -83,40 +83,52 @@
 
   .sec{grid-area:sec; display:flex; align-items:baseline; justify-content:space-between; margin:6px 2px -6px; font-size:17px; font-weight:700}
   .sec small{font-size:13px; font-weight:500; color:var(--ink-3)}
-  /* 레벨 = 노트에 링으로 걸어 둔 단어 카드 */
-  .decks{grid-area:decks; display:grid; grid-template-columns:1fr; gap:16px; align-content:start; padding:4px 6px 14px 12px}
-  .deck{position:relative; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:8px 16px;
-    padding:16px 18px 16px 50px; text-align:left; cursor:pointer; background:#fff; border:0; border-radius:14px;
-    border-left:5px solid var(--lv-strong);
-    box-shadow:0 0 0 1px #E4E8EF, 0 14px 18px -12px rgba(20,30,50,.28), 0 2px 4px rgba(20,30,50,.05);
-    transform-origin:0 50%; transition:transform .2s}
-  .deck:nth-child(odd){transform:rotate(-.7deg)}
-  .deck:nth-child(even){transform:rotate(.5deg)}
-  .deck:active{transform:rotate(0) translateY(1px)}
-  .deck .ring{position:absolute; left:14px; top:50%; width:14px; height:14px; margin-top:-7px; border-radius:50%;
-    background:#FEFEFC; box-shadow:inset 0 1px 2px rgba(0,0,0,.28)}
-  /* 은색 링: 구멍을 지나 카드 왼쪽 끝을 감쌈 */
-  .deck::before{content:""; position:absolute; z-index:2; left:-15px; top:50%; width:38px; height:22px; margin-top:-11px; border-radius:50%;
-    border:3px solid #B4BCC8; border-left-color:#8E98A7; border-bottom-color:#9AA4B2;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 1px 2px rgba(0,0,0,.18)}
-  .deck .lvname{grid-row:1/3; font-size:26px; font-weight:800; letter-spacing:-.01em; line-height:1}
-  .deck .lvname i{display:block; width:22px; height:4px; border-radius:2px; background:var(--lv-strong); margin-top:6px}
-  .deck .t{font-size:16px; font-weight:600}
-  .deck .t small{white-space:nowrap; margin-left:6px; font-size:13px; font-weight:500; color:var(--ink-3)}
-  .deck .pct{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums}
-  .deck .pct small{font-size:12px; font-weight:500; color:var(--ink-3); margin-right:6px}
+  /* 레벨 = 노트에 붙여 둔 포스트잇 */
+  .decks{grid-area:decks; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px 16px; align-content:start; padding:6px 6px 16px}
+  .deck{position:relative; display:flex; flex-direction:column; justify-content:space-between; gap:8px; aspect-ratio:1 / .64;
+    min-width:0; padding:16px 15px 13px; text-align:left; cursor:pointer; border:0; border-radius:2px 2px 4px 2px; color:#2A2620;
+    /* 위쪽 접착 띠 + 오른쪽 아래로 갈수록 살짝 들뜬 음영 */
+    background:
+      linear-gradient(to bottom, rgba(0,0,0,.022) 0, rgba(0,0,0,.022) 11%, rgba(255,255,255,.25) 11%, rgba(255,255,255,0) 50%),
+      linear-gradient(150deg, rgba(255,255,255,0) 62%, rgba(80,60,20,.07) 100%),
+      var(--pi);
+    box-shadow:0 1px 1px rgba(60,45,20,.10), 0 12px 14px -10px rgba(60,45,20,.38), 8px 14px 16px -14px rgba(60,45,20,.45);
+    transform:rotate(var(--rot, 0deg)); transition:transform .2s ease}
+  .deck:nth-child(1){--rot:-1.6deg} .deck:nth-child(2){--rot:1.2deg} .deck:nth-child(3){--rot:.8deg}
+  .deck:nth-child(4){--rot:-1.1deg} .deck:nth-child(5){--rot:1.4deg}
+  .deck:active{transform:rotate(0deg) scale(.98)}
+  .deck:focus-visible{outline:2.5px solid var(--brand); outline-offset:4px}
+  .deck .lvname{font-size:30px; font-weight:800; letter-spacing:-.02em; line-height:1; color:var(--lv-d)}
+  .deck .t{font-family:"Klee One"; font-size:15px; font-weight:600; margin-top:5px; color:#3D372D}
+  .deck .t small{margin-left:6px; font-family:"IBM Plex Sans KR"; font-size:12px; font-weight:500; color:rgba(42,38,32,.55); white-space:nowrap}
+  .deck .foot{display:flex; flex-direction:column; gap:6px}
+  .deck .pct{display:flex; align-items:baseline; justify-content:space-between; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--lv-d)}
+  .deck .pct small{font-size:11.5px; font-weight:500; color:rgba(42,38,32,.6)}
+  .deck .meter{height:5px; border-radius:3px; background:rgba(42,38,32,.1); overflow:hidden}
+  .deck .meter i{background:var(--lv-d)}
   .meter{grid-column:2/4; height:6px; border-radius:3px; background:#EDF1F8; overflow:hidden}
   .meter i{display:block; height:100%; border-radius:3px; background:var(--lv-strong)}
 
   /* 하단 탭 */
-  .tabbar{position:absolute; left:0; right:0; bottom:0; z-index:2; display:flex; height:calc(var(--safe-bottom) + 54px); padding:0 12px var(--safe-bottom);
-    background:rgba(254,254,252,.95); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); border-top:1px solid rgba(96,128,186,.18)}
+  /* 하단 탭: 떠 있는 흰 바. 고른 탭은 형광펜 표시 (모드 선택과 같은 방식) */
+  .tabbar{position:absolute; z-index:2; left:14px; right:14px; bottom:calc(var(--safe-bottom) - 2px); display:flex; height:64px; padding:0 6px;
+    margin:0 auto; max-width:460px; border-radius:22px; background:#fff;
+    box-shadow:0 0 0 1px rgba(20,30,50,.07), 0 10px 26px -8px rgba(20,30,50,.22), 0 2px 6px rgba(20,30,50,.06)}
   .screen.in-quiz .tabbar{display:none}
-  .tab{flex:1; border:0; background:none; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
-    font-size:11px; font-weight:600; color:var(--ink-3)}
-  .tab svg{width:24px; height:24px}
-  .tab.on{color:var(--brand)}
-  .tab .dot{position:absolute; margin:-14px 0 0 22px; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:var(--shu); color:#fff; font-size:10px; line-height:16px}
+  .tab{position:relative; flex:1; border:0; background:none; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+    font:600 12.5px/1.2 "IBM Plex Sans KR"; color:var(--ink-2); -webkit-tap-highlight-color:transparent; transition:color .2s}
+  .tab svg{width:25px; height:25px; stroke-width:1.9}
+  .tab .lb{position:relative; isolation:isolate; padding:0 3px}
+  .tab .lb::before{content:""; position:absolute; z-index:-1; left:-3px; right:-3px; bottom:0; height:.62em; background:#FFE066; opacity:.9;
+    border-radius:3px 6px 3px 7px / 6px 3px 7px 3px; transform:scaleX(0) skewX(-14deg); transform-origin:0 50%; transition:transform .35s cubic-bezier(.3,.8,.25,1)}
+  .tab.on{color:var(--ink)}
+  .tab.on svg{stroke-width:2.3}
+  .tab.on .lb{font-weight:700}
+  .tab.on .lb::before{transform:scaleX(1) skewX(-14deg)}
+  .tab:not(.on):active{color:var(--ink)}
+  .tab:focus-visible{outline:2px solid var(--brand); outline-offset:-4px; border-radius:16px}
+  .tab .dot{position:absolute; top:7px; left:calc(50% + 7px); min-width:17px; height:17px; padding:0 5px; border-radius:9px; background:var(--shu); color:#fff;
+    font-size:10.5px; font-weight:700; line-height:17px; box-shadow:0 0 0 2px #fff}
 
   /* 오답노트 / 기록 탭 공통 */
   .page-title{padding-top:14px; font-size:28px; font-weight:700; letter-spacing:-.01em}
@@ -146,20 +158,21 @@
   .lvrow span{color:var(--ink-3); font-variant-numeric:tabular-nums; min-width:68px; text-align:right}
 
   /* iPhone 가로: 왼쪽 오늘 카드, 오른쪽 레벨 */
-  .compact .tabbar{height:calc(var(--safe-bottom) + 44px)}
-  .compact .tab{flex-direction:row; gap:6px; font-size:12px}
+  .compact .tabbar{height:46px; max-width:420px; border-radius:16px; bottom:calc(var(--safe-bottom) - 6px)}
+  .compact .tab{flex-direction:row; gap:7px; font-size:12.5px}
   .compact .tab svg{width:20px; height:20px}
-  .compact .tab .dot{position:static; margin:0 0 0 2px}
-  .compact .tabbed{padding-bottom:calc(var(--safe-bottom) + 52px) !important}
+  .compact .tab .dot{position:static; margin:0 0 0 -2px}
+  .compact .tabbed{padding-bottom:calc(var(--safe-bottom) + 50px) !important}
   .compact .home-view.active{display:grid; grid-template-columns:260px 1fr; grid-template-areas:"top decks"; column-gap:20px; align-items:center; padding-top:calc(var(--safe-top) + 4px)}
   .compact .sec{display:none}
   .compact .h-top{padding:0 0 14px}
   .compact .brand .mark{font-size:32px}
   .compact .brand .lead{margin-top:12px; font-size:14px}
   .compact .brand .sub{font-size:12px}
-  .compact .decks{align-self:stretch; overflow-y:auto; padding:8px 8px 10px 14px; gap:14px}
-  .compact .deck{padding:11px 16px 11px 46px}
-  .compact .deck .lvname{font-size:22px}
+  .compact .decks{align-self:stretch; overflow-y:auto; grid-template-columns:repeat(3, minmax(0, 1fr)); padding:10px 10px 14px; gap:16px 14px}
+  .compact .deck{aspect-ratio:auto; min-height:118px; padding:14px 13px 12px; gap:8px}
+  .compact .deck .lvname{font-size:24px}
+  .compact .deck .t{font-size:13.5px; margin-top:3px}
 
   /* iPad */
   .wide .tabbed{padding-left:max(40px, calc(50% - 480px)) !important; padding-right:max(40px, calc(50% - 480px)) !important}
@@ -167,10 +180,9 @@
   .wide .h-top{padding:48px 0 22px}
   .wide .brand .mark{font-size:52px}
   .wide .brand .lead{font-size:20px}
-  .wide .decks{grid-template-columns:1fr 1fr; gap:22px 28px}
-  .wide .deck{padding:18px 22px 18px 54px}
-  .wide .deck:nth-child(4n+2), .wide .deck:nth-child(4n+3){transform:rotate(.5deg)}
-  .wide .deck:nth-child(4n+1), .wide .deck:nth-child(4n){transform:rotate(-.6deg)}
+  .wide .decks{grid-template-columns:repeat(5, minmax(0, 1fr)); gap:24px 22px; padding-top:10px}
+  .wide .deck{aspect-ratio:1 / 1; padding:24px 18px 18px}
+  .wide .deck .lvname{font-size:36px}
 
   /* ================= 퀴즈 화면 ================= */
   .quiz-view{gap:14px}
@@ -470,6 +482,34 @@
   .wide .opt{min-height:64px; font-size:22px}
   .wide .q-card{padding:52px 32px 28px}
 
+
+  /* 홈 상단: 이름 */
+  .brand .name{display:flex; flex-direction:column; gap:8px}
+  .brand .title .mark{font-family:"IBM Plex Sans KR", system-ui, -apple-system, sans-serif; font-weight:700; font-size:30px; line-height:1; letter-spacing:.06em; color:var(--ink)}
+  .brand .tag{font-size:13px; font-weight:500; line-height:1; color:var(--ink-3)}
+  .compact .brand .title .mark{font-size:24px}
+  .wide .brand .title .mark{font-size:38px}
+  .wide .brand .tag{font-size:14.5px}
+
+  /* 모드 선택: 고른 모드에 형광펜을 긋듯 노란 줄이 쓱 그어짐 */
+  .modes{display:flex; flex-wrap:wrap; gap:6px 24px; margin-top:24px}
+  .modes button{position:relative; isolation:isolate; padding:6px 1px 7px; border:0; background:none; cursor:pointer; white-space:nowrap;
+    font:600 16px/1.2 "IBM Plex Sans KR"; color:var(--ink-3); transition:color .25s; -webkit-tap-highlight-color:transparent}
+  .modes button span{position:relative; z-index:1}
+  .modes button::before{content:""; position:absolute; z-index:0; left:-6px; right:-6px; bottom:6px; height:.66em;
+    background:#FFE066; border-radius:3px 7px 4px 8px / 7px 3px 8px 4px; opacity:.9;
+    transform:scaleX(0) skewX(-14deg) rotate(-1.2deg); transform-origin:0 50%; transition:transform .38s cubic-bezier(.3,.8,.25,1)}
+  .modes button.on{color:var(--ink)}
+  .modes button.on::before{transform:scaleX(1) skewX(-14deg) rotate(-1.2deg)}
+  .modes button:not(.on):active{color:var(--ink-2)}
+  .modes button:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border-radius:4px}
+  .mode-desc{margin:10px 1px 0; font-size:13.5px; line-height:1.55; color:var(--ink-2); word-break:keep-all}
+  .compact .modes{gap:4px 16px; margin-top:16px}
+  .compact .modes button{font-size:14px}
+  .compact .mode-desc{font-size:12.5px; margin-top:7px}
+  .wide .modes{gap:8px 34px; margin-top:30px}
+  .wide .modes button{font-size:19px}
+  .wide .mode-desc{font-size:15px; margin-top:12px}
 </style>
 </head>
 <body>
@@ -478,7 +518,7 @@
   <!-- 처음 실행: 단어 파일 불러오기 -->
   <section class="view setup" id="setupView">
     <div class="brand">
-      <div class="title"><span class="mark">単語帳</span><span class="seal">JLPT</span></div>
+      <div class="title"><div class="name"><span class="mark">VOCABOX</span><span class="tag">JLPT N5 – N1 학습 노트</span></div></div>
       <p class="lead">단어 파일을 한 번만 불러오면 돼요</p>
     </div>
     <div class="setup-card">
@@ -495,13 +535,12 @@
   <section class="view home-view tabbed" id="homeView">
     <div class="h-top">
       <div class="brand">
-        <div class="title"><span class="mark">単語帳</span><span class="seal">JLPT</span></div>
-        <p class="lead" id="homeLead">뜻을 보고 일본어로 써보세요</p>
-        <p class="sub" id="homeSub">한자, 히라가나 모두 정답으로 인정돼요</p>
+        <div class="title"><div class="name"><span class="mark">VOCABOX</span><span class="tag">JLPT N5 – N1 학습 노트</span></div></div>
       </div>
-      <div class="seg" id="modeSeg">
-        <button data-m="jp">일본어 쓰기</button><button data-m="ko">뜻 쓰기</button><button data-m="book">단어장</button><button data-m="test">시험</button>
-      </div>
+      <nav class="modes" id="modeSeg" aria-label="학습 방법">
+        <button data-m="book"><span>단어장</span></button><button data-m="jp"><span>일본어 쓰기</span></button><button data-m="ko"><span>뜻 쓰기</span></button><button data-m="test"><span>시험</span></button>
+      </nav>
+      <p class="mode-desc" id="homeSub"></p>
     </div>
     <div class="sec">레벨</div>
     <div class="decks" id="decks"></div>
@@ -600,9 +639,9 @@
       </section>
 
   <nav class="tabbar" id="tabbar">
-    <button class="tab on" data-tab="homeView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="13" height="17" rx="2.5"/><path d="M8 8h5M8 12h5"/><path d="M20 7v12.5a1.5 1.5 0 0 1-1.5 1.5H8"/></svg>학습</button>
-    <button class="tab" data-tab="noteView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M9 10l6 6M15 10l-6 6"/></svg>오답노트<span class="dot" id="noteDot"></span></button>
-    <button class="tab" data-tab="statsView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>기록</button>
+    <button class="tab on" data-tab="homeView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="13" height="17" rx="2.5"/><path d="M8 8h5M8 12h5"/><path d="M20 7v12.5a1.5 1.5 0 0 1-1.5 1.5H8"/></svg><span class="lb">학습</span></button>
+    <button class="tab" data-tab="noteView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M9 10l6 6M15 10l-6 6"/></svg><span class="lb">오답노트</span><span class="dot" id="noteDot"></span></button>
+    <button class="tab" data-tab="statsView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg><span class="lb">기록</span></button>
   </nav>
 </div>
 
