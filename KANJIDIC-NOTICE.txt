@@ -1,0 +1,9 @@
+kanjiyomi.js 의 한자 읽기·JLPT 레벨 정보는 KANJIDIC 에서 가져왔습니다.
+
+KANJIDIC — Electronic Dictionary Research and Development Group (EDRDG)
+https://www.edrdg.org/edrdg/licence.html
+License: Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0)
+https://creativecommons.org/licenses/by-sa/4.0/
+
+변환 출처: https://github.com/davidluzgouveia/kanji-data (MIT)
+kanjiyomi.js 는 위 데이터에서 음독·훈독 어간·JLPT 레벨만 추려 만든 파생 데이터이며, 같은 CC BY-SA 4.0 조건을 따릅니다.

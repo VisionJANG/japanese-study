@@ -440,7 +440,16 @@
   .q-card .rv-tag::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--shu)}
   .q-card .rv-tag.on{display:inline-flex}
   .q-ins{font-family:"Klee One"; font-size:14px; line-height:1.6; color:var(--ink-2); padding-bottom:12px; border-bottom:1px dashed #DDE3EC}
-  .q-ins b{display:inline-block; margin-right:8px; padding:0 7px; border:1.5px solid var(--ink-2); border-radius:4px; font-weight:600; font-size:12.5px; color:var(--ink)}
+  .q-type{display:flex; align-items:baseline; gap:8px; margin-bottom:6px}
+  .q-type b{display:inline-block; padding:2px 8px; border:1.5px solid var(--ink-2); border-radius:4px; font-family:"Klee One"; font-weight:600; font-size:13.5px; color:var(--ink); letter-spacing:.04em}
+  .q-type span{font-family:"IBM Plex Sans KR"; font-size:12.5px; font-weight:600; color:var(--ink-3)}
+  .q-sent .target{display:inline-block; padding:4px 0; font-size:1.35em; font-weight:600; border-bottom:2px solid var(--ink)}
+  .q-sent.usage{text-align:center}
+  /* 쓰임새(用法): 보기가 문장이라 글자를 조금 작게 */
+  .sent-opts .opt{font-size:15.5px; line-height:1.6; align-items:flex-start; padding-top:12px; padding-bottom:12px}
+  .sent-opts .opt .no{margin-top:1px}
+  .opt .w u{text-decoration:none; border-bottom:1.5px solid currentColor; font-weight:700}
+  .compact .sent-opts .opt{font-size:14px; padding-top:8px; padding-bottom:8px}
   .q-sent{font-family:"Klee One"; font-size:21px; line-height:1.8; color:var(--ink); word-break:normal; line-break:strict}
   .q-sent u{text-decoration:none; padding:0 1px; border-bottom:2px solid var(--ink); font-weight:600}
   .q-sent .blank{display:inline-block; min-width:4.2em; text-align:center; color:var(--ink-3)}
@@ -510,6 +519,82 @@
   .wide .modes{gap:8px 34px; margin-top:30px}
   .wide .modes button{font-size:19px}
   .wide .mode-desc{font-size:15px; margin-top:12px}
+
+  /* ================= 처음 화면: 학습 영역 4개 (노트 표지) ================= */
+  /* 처음 화면만 나무 책상 위 */
+  .screen .main-view{gap:22px; background:#B98A57 url("wood.jpg") center / cover no-repeat;
+    -webkit-mask-image:none; mask-image:none; padding-bottom:calc(var(--safe-bottom) + 20px) !important}
+  .compact .main-view, .wide .main-view{background-image:url("wood-wide.jpg")}
+  .main-view .brand .title .mark{color:#2B1D10; text-shadow:0 1px 0 rgba(255,236,205,.35)}
+  .main-view .brand .tag{color:rgba(43,29,16,.72)}
+  .main-view .area{box-shadow:0 1px 1px rgba(40,22,5,.18), 0 14px 22px -10px rgba(40,22,5,.55), 0 4px 6px -2px rgba(40,22,5,.18)}
+  .main-brand{padding-top:24px}
+  .areas{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px 14px}
+  .area{position:relative; display:flex; flex-direction:column; min-width:0; min-height:212px; padding:18px 14px 14px 30px; text-align:left;
+    border:0; border-radius:5px 14px 14px 5px; background:#fff; cursor:pointer; color:var(--ink);
+    box-shadow:0 0 0 1px #E2E6ED, 0 10px 22px -12px rgba(20,30,50,.28); transition:transform .18s ease; -webkit-tap-highlight-color:transparent}
+  /* 왼쪽 제본 띠 + 바느질 선 */
+  .area::before{content:""; position:absolute; left:0; top:0; bottom:0; width:16px; border-radius:5px 0 0 5px; background:var(--c)}
+  .area::after{content:""; position:absolute; left:7px; top:10px; bottom:10px; width:2px;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,.85) 0 6px, transparent 6px 11px)}
+  .area:active{transform:scale(.98)}
+  .area:focus-visible{outline:2.5px solid var(--brand); outline-offset:3px}
+  .area .jp{font-family:"Klee One"; font-weight:600; font-size:15px; color:var(--cd); letter-spacing:.06em}
+  .area h2{margin:4px 0 0; font-size:24px; font-weight:700; letter-spacing:-.01em}
+  .area p{margin:9px 0 0; font-size:13px; line-height:1.5; color:var(--ink-2); word-break:keep-all}
+  .area .ft{margin-top:auto; padding-top:12px; display:flex; align-items:center; justify-content:space-between; font-size:12px; font-weight:600; color:var(--cd)}
+  .area .go{display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--cs); color:var(--cd)}
+  .area .go svg{width:15px; height:15px}
+  /* 준비 중: 빨간 도장 */
+  .stamp-wait{display:inline-grid; place-items:center; height:24px; padding:0 8px; border:1.8px solid var(--shu); border-radius:6px; color:var(--shu);
+    font-family:"Klee One"; font-weight:600; font-size:12.5px; letter-spacing:.1em; transform:rotate(-6deg); background:rgba(255,255,255,.7)}
+  .area.wait h2, .area.wait .jp{opacity:.92}
+  .compact .main-view.active{display:grid; grid-template-columns:230px 1fr; column-gap:22px; align-items:center; padding-top:calc(var(--safe-top) + 4px)}
+  .compact .main-brand{padding-top:0}
+  .compact .areas{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px}
+  .compact .area{min-height:128px; padding:12px 12px 11px 28px}
+  .compact .area h2{font-size:18px} .compact .area p{display:none}
+  .wide .areas{grid-template-columns:repeat(4, minmax(0, 1fr)); gap:22px}
+  .wide .area{min-height:240px; padding:22px 18px 18px 36px}
+  .wide .area h2{font-size:26px} .wide .area p{font-size:14px}
+  .wide .main-brand{padding-top:48px}
+
+  /* ================= 영역 화면 공통 머리 (뒤로 + 일본어 + 제목) ================= */
+  .page-head{display:flex; align-items:center; gap:10px}
+  .ph-back{display:grid; place-items:center; width:38px; height:38px; margin-left:-8px; border:0; border-radius:12px; background:none; color:var(--ink); cursor:pointer}
+  .ph-back svg{width:24px; height:24px}
+  .ph-back:active{background:rgba(20,30,50,.06)}
+  .ph-t{display:flex; flex-direction:column; gap:3px}
+  .ph-jp{font-family:"Klee One"; font-weight:600; font-size:13px; letter-spacing:.08em; color:var(--ink-3)}
+  .ph-t h1{margin:0; font-size:28px; font-weight:700; line-height:1.1; letter-spacing:-.01em}
+  .home-view .h-top{padding-top:18px}
+  .compact .ph-t h1{font-size:22px}
+  .wide .ph-t h1{font-size:34px}
+
+  /* ================= 청해·문법·독해 (준비 중 화면) ================= */
+  .sec-view{gap:18px}
+  .sec-view .page-head{padding-top:18px}
+  .sv-desc{margin:-6px 0 0; font-size:13.5px; line-height:1.55; color:var(--ink-2); word-break:keep-all}
+  .memo{position:relative; padding:16px 16px 15px; border-radius:2px 2px 4px 2px; transform:rotate(-.8deg); color:#3D372D;
+    background:linear-gradient(to bottom, rgba(0,0,0,.022) 0, rgba(0,0,0,.022) 18%, rgba(255,255,255,.25) 18%, rgba(255,255,255,0) 60%), #FFEB8A;
+    box-shadow:0 1px 1px rgba(60,45,20,.10), 0 12px 14px -10px rgba(60,45,20,.38)}
+  .memo b{display:block; font-size:15px; margin-bottom:4px}
+  .memo span{font-size:13px; line-height:1.5}
+  .sv-lv{display:flex; gap:8px}
+  .sv-lv span{flex:1; display:grid; place-items:center; height:38px; border-radius:3px; font-weight:800; font-size:15px; color:var(--d); background:var(--p);
+    box-shadow:0 1px 1px rgba(60,45,20,.08), 0 6px 8px -6px rgba(60,45,20,.3); opacity:.75}
+  .sv-lv span:nth-child(odd){transform:rotate(-1.5deg)} .sv-lv span:nth-child(even){transform:rotate(1.2deg)}
+  .sv-h{margin:4px 2px -8px; font-size:16px; font-weight:700}
+  .types{display:flex; flex-direction:column; gap:10px}
+  .type{display:flex; align-items:center; gap:12px; padding:14px 14px 14px 16px; border-radius:14px; background:#fff;
+    box-shadow:0 0 0 1px #E2E6ED, 0 4px 10px -6px rgba(20,30,50,.15)}
+  .type .no{flex:none; display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--cs); color:var(--cd); font-weight:700; font-size:13px}
+  .type .tx{flex:1; min-width:0}
+  .type .tx i{display:block; font-style:normal; font-family:"Klee One"; font-weight:600; font-size:12.5px; color:var(--ink-3)}
+  .type .tx b{display:block; margin-top:2px; font-size:15px}
+  .type .tx span{display:block; margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--ink-2); word-break:keep-all}
+  .type .soon{flex:none; font-size:11.5px; font-weight:600; color:var(--ink-3); padding:4px 8px; border-radius:99px; background:#F1F3F7}
+  .wide .types{display:grid; grid-template-columns:1fr 1fr}
 </style>
 </head>
 <body>
@@ -532,10 +617,20 @@
     <div class="setup-msg" id="setupMsg"></div>
   </section>
 
+  <section class="view main-view tabbed" id="mainView">
+    <div class="brand main-brand">
+      <div class="title"><div class="name"><span class="mark">VOCABOX</span><span class="tag">JLPT N5 – N1 학습 노트</span></div></div>
+    </div>
+    <div class="areas" id="areas"></div>
+  </section>
+
+  <section class="view sec-view tabbed" id="secView"></section>
+
   <section class="view home-view tabbed" id="homeView">
     <div class="h-top">
-      <div class="brand">
-        <div class="title"><div class="name"><span class="mark">VOCABOX</span><span class="tag">JLPT N5 – N1 학습 노트</span></div></div>
+      <div class="page-head">
+        <button class="ph-back" id="vocabBack" aria-label="처음 화면으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="ph-t"><span class="ph-jp">語彙</span><h1>단어</h1></div>
       </div>
       <nav class="modes" id="modeSeg" aria-label="학습 방법">
         <button data-m="book"><span>단어장</span></button><button data-m="jp"><span>일본어 쓰기</span></button><button data-m="ko"><span>뜻 쓰기</span></button><button data-m="test"><span>시험</span></button>
@@ -639,7 +734,7 @@
       </section>
 
   <nav class="tabbar" id="tabbar">
-    <button class="tab on" data-tab="homeView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="13" height="17" rx="2.5"/><path d="M8 8h5M8 12h5"/><path d="M20 7v12.5a1.5 1.5 0 0 1-1.5 1.5H8"/></svg><span class="lb">학습</span></button>
+    <button class="tab on" data-tab="mainView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3.5" width="13" height="17" rx="2.5"/><path d="M8 8h5M8 12h5"/><path d="M20 7v12.5a1.5 1.5 0 0 1-1.5 1.5H8"/></svg><span class="lb">학습</span></button>
     <button class="tab" data-tab="noteView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M9 10l6 6M15 10l-6 6"/></svg><span class="lb">오답노트</span><span class="dot" id="noteDot"></span></button>
     <button class="tab" data-tab="statsView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V11M12 20V5M19 20v-6"/></svg><span class="lb">기록</span></button>
   </nav>
@@ -649,6 +744,7 @@
 <input type="file" id="fileBackup" accept=".json,application/json" hidden>
 
 <script src="recognizer.js"></script>
+<script src="kanjiyomi.js"></script>
 <script src="segment.js"></script>
 <script src="app.js"></script>
 <script src="patterns.js" defer></script>

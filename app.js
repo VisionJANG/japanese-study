@@ -23,7 +23,7 @@ const MODES = {
   ko:  {desc:"일본어를 보고 뜻을 한국어로 써보세요", title:"뜻 쓰기"},
   test:{desc:"JLPT처럼 4개 중 정답을 고르는 문제예요", title:"시험"}
 };
-const S = {qm:"jp", noteMode:null, mode:"vertical", tab:"homeView", level:null, title:"", deck:[], idx:0, marks:[], phase:"answer",
+const S = {qm:"jp", noteMode:null, mode:"vertical", tab:"mainView", area:null, level:null, title:"", deck:[], idx:0, marks:[], phase:"answer",
            review:new Set(), isRetry:false, strokes:[], base:null, recog:"", words:[], byId:{}, bank:{}};
 
 /* ================= 저장소 ================= */
@@ -71,16 +71,19 @@ addEventListener("resize", applyMode);
 addEventListener("orientationchange", () => setTimeout(applyMode, 200));
 
 /* ================= 탭 / 화면 전환 ================= */
+const STUDY_VIEWS = ["mainView", "homeView", "secView"];      // 하단 「학습」 탭에 속하는 화면
 function show(view){
-  ["setupView","homeView","noteView","statsView","quizView"].forEach(v => $(v).classList.toggle("active", v === view));
+  ["setupView","mainView","homeView","secView","noteView","statsView","quizView"].forEach(v => $(v).classList.toggle("active", v === view));
   $("screen").classList.toggle("in-quiz", view === "quizView" || view === "setupView");
-  $("tabbar").style.display = view === "setupView" ? "none" : "";
+  $("tabbar").style.display = view === "setupView" || view === "mainView" ? "none" : "";   // 처음 화면에서는 하단 탭 숨김
   if (view === "quizView" || view === "setupView") return requestAnimationFrame(() => { resizeCanvas(); if (S.phase === "answer") fitFront(); });
   S.tab = view;
-  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === view));
-  renderHome(); renderNote(); renderStats();
+  if (view === "homeView" || view === "secView") S.lastStudy = view;    // 「학습」 탭을 누르면 마지막으로 보던 영역으로
+  const tabOf = STUDY_VIEWS.includes(view) ? "mainView" : view;
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === tabOf));
+  renderMain(); renderHome(); renderNote(); renderStats();
 }
-document.querySelectorAll(".tab").forEach(t => t.onclick = () => show(t.dataset.tab));
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => show(t.dataset.tab === "mainView" ? (S.lastStudy || "homeView") : t.dataset.tab));
 
 /* ================= 단어 파일 불러오기 ================= */
 $("pickWords").onclick = () => $("fileWords").click();
@@ -96,7 +99,7 @@ $("fileWords").onchange = async e => {
     useWords(words);
     try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(_) {}
     msg.textContent = `${S.words.length.toLocaleString()}개 단어를 저장했어요`;
-    setTimeout(() => show("homeView"), 500);
+    setTimeout(() => show("mainView"), 500);
   } catch(err){
     msg.className = "setup-msg err";
     msg.textContent = "단어 파일을 읽지 못했어요. words_personal.json 파일인지 확인해 주세요.";
@@ -130,6 +133,54 @@ function renderHome(){
 document.querySelectorAll("#modeSeg button").forEach(b => b.onclick = () => {
   REC.mode = b.dataset.m; saveRec(); S.noteMode = null; renderHome(); renderNote();
 });
+
+/* ================= 처음 화면: 청해 · 단어 · 문법 · 독해 ================= */
+const GO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+const BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+const AREAS = {
+  listen: {ko:"청해", jp:"聴解", c:"#F2624C", cd:"#C23D29", cs:"#FFE5E0", ready:false,
+    desc:"대화와 설명을 듣고 알맞은 답을 골라요",
+    intro:"음성을 듣고 질문에 답하는 연습이에요. 실제 시험처럼 문제를 한 번만 들려줘요.",
+    types:[["課題理解","과제 이해","대화를 듣고 다음에 할 일을 고르기"],["ポイント理解","포인트 이해","이유나 핵심 정보를 골라 듣기"],
+           ["概要理解","개요 이해","말하는 사람의 생각이나 주제 파악하기"],["発話表現","발화 표현","그림 상황에 맞는 말 고르기"],
+           ["即時応答","즉시 응답","짧은 말을 듣고 바로 알맞은 대답 고르기"],["統合理解","통합 이해","여러 정보를 비교하며 듣기 (N2·N1)"]]},
+  vocab:  {ko:"단어", jp:"語彙", c:"#2F5BEA", cd:"#1E44C4", cs:"#E3EAFF", ready:true,
+    desc:"단어장 · 일본어 쓰기 · 뜻 쓰기 · 시험"},
+  grammar:{ko:"문법", jp:"文法", c:"#17B07A", cd:"#0B7D55", cs:"#DBF6EA", ready:false,
+    desc:"문형을 익히고 문장을 완성해요",
+    intro:"레벨별 문형을 예문과 함께 익히고, 시험 형식으로 확인해요.",
+    types:[["文法形式の判断","문법 형식 판단","문장에 맞는 문형 고르기"],["文の組み立て","문장 만들기","단어를 순서대로 놓아 문장 완성하기 (★ 위치)"],
+           ["文章の文法","글의 문법","글의 흐름에 맞는 표현 고르기"]]},
+  read:   {ko:"독해", jp:"読解", c:"#8B5CF6", cd:"#6A3FD6", cs:"#EEE6FF", ready:false,
+    desc:"지문을 읽고 내용을 파악해요",
+    intro:"짧은 글부터 긴 글까지 읽고 내용과 필자의 생각을 파악하는 연습이에요.",
+    types:[["内容理解（短文）","내용 이해 · 단문","생활·업무 관련 짧은 글"],["内容理解（中文）","내용 이해 · 중문","설명문·수필 등 중간 길이 글"],
+           ["内容理解（長文）","내용 이해 · 장문","긴 글의 요지와 필자의 생각 (N3 이상)"],["統合理解","통합 이해","여러 글을 비교하며 읽기 (N2·N1)"],
+           ["主張理解","주장 이해","논리적인 글에서 주장 파악하기 (N2·N1)"],["情報検索","정보 검색","광고·안내문에서 필요한 정보 찾기"]]}
+};
+const AREA_ORDER = ["listen", "vocab", "grammar", "read"];
+function renderMain(){
+  $("areas").innerHTML = AREA_ORDER.map(k => { const a = AREAS[k];
+    return `<button class="area ${a.ready ? "" : "wait"}" data-a="${k}" style="--c:${a.c}; --cd:${a.cd}; --cs:${a.cs}">
+      <span class="jp">${a.jp}</span><h2>${a.ko}</h2><p>${a.desc}</p>
+      <div class="ft">${a.ready ? `<span>시작하기</span><span class="go">${GO}</span>` : `<span></span><span class="stamp-wait">準備中</span>`}</div></button>`; }).join("");
+  $("areas").querySelectorAll(".area").forEach(b => b.onclick = () => b.dataset.a === "vocab" ? show("homeView") : openArea(b.dataset.a));
+}
+function openArea(k){
+  const a = AREAS[k]; S.area = k;
+  $("secView").innerHTML = `
+    <div class="page-head"><button class="ph-back" id="secBack" aria-label="처음 화면으로">${BACK}</button>
+      <div class="ph-t"><span class="ph-jp">${a.jp}</span><h1>${a.ko}</h1></div></div>
+    <p class="sv-desc">${a.intro}</p>
+    <div class="memo"><b>준비 중이에요</b><span>문제가 들어오면 이 화면에서 레벨과 유형을 골라 풀 수 있어요.</span></div>
+    <div class="sv-lv">${LEVELS.map(lv => `<span style="--p:${LV[lv].p}; --d:${LV[lv].d}">${lv}</span>`).join("")}</div>
+    <div class="sv-h">문제 유형</div>
+    <div class="types" style="--cs:${a.cs}; --cd:${a.cd}">${a.types.map((t, i) => `
+      <div class="type"><span class="no">${i + 1}</span><div class="tx"><i>${t[0]}</i><b>${t[1]}</b><span>${t[2]}</span></div><span class="soon">준비 중</span></div>`).join("")}</div>`;
+  $("secBack").onclick = () => show("mainView");
+  show("secView"); $("secView").scrollTop = 0;
+}
+$("vocabBack").onclick = () => show("mainView");
 
 /* ================= 오답노트 (일본어 쓰기 / 뜻 쓰기 따로) ================= */
 const wrongWords = (qm = "jp") => REC[wrongKey(qm)].map(id => S.byId[id]).filter(Boolean);
@@ -288,79 +339,243 @@ function kunMap(){     // 한자 한 글자 단어에서 「한자 → 읽는 �
 }
 const firstPos = w => String(w.pos || "").split(/[·・,\s]/)[0];
 function pickOthers(list, n, ok){ const r = []; for (const x of shuffle(list)) { if (r.length >= n) break; if (ok(x) && !r.includes(x)) r.push(x); } return r; }
-function makeExam(w){
+/* ---------- 한자 읽기 데이터(kanjiyomi.js)로 글자별 읽기를 나누고, 같은 소리 한자를 찾기 ---------- */
+const kata2hira = t => String(t).replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+const KY = () => window.KYOMI || {};
+const yomiOf = k => { const e = KY()[k]; return e ? [...e[0].split(","), ...e[1].split(",")].filter(Boolean) : []; };
+const RENDAKU = {か:"が",き:"ぎ",く:"ぐ",け:"げ",こ:"ご",さ:"ざ",し:"じ",す:"ず",せ:"ぜ",そ:"ぞ",た:"だ",ち:"ぢ",つ:"づ",て:"で",と:"ど",は:"ば",ひ:"び",ふ:"ぶ",へ:"べ",ほ:"ぼ"};
+const HANDAKU = {は:"ぱ",ひ:"ぴ",ふ:"ぷ",へ:"ぺ",ほ:"ぽ"};
+function yomiVariants(r, first, last){        // 연탁(が행 등)·촉음화(っ) 변형까지
+  const v = new Set([r]);
+  if (!first){ if (RENDAKU[r[0]]) v.add(RENDAKU[r[0]] + r.slice(1)); if (HANDAKU[r[0]]) v.add(HANDAKU[r[0]] + r.slice(1)); }
+  if (!last && /[つくちき]$/.test(r)) v.add(r.slice(0, -1) + "っ");
+  return [...v];
+}
+function splitReading(word, reading){          // 優勝/ゆうしょう → [{ch:優, r:ゆう, base:ゆう}, {ch:勝, r:しょう, base:しょう}]
+  const chs = [...word], rd = kata2hira(reading);
+  const go = (i, pos) => {
+    if (i === chs.length) return pos === rd.length ? [] : null;
+    const ch = chs[i];
+    if (!HAS_KANJI.test(ch)){ const h = kata2hira(ch); if (!rd.startsWith(h, pos)) return null; const r = go(i + 1, pos + h.length); return r ? [{ch, r:h, base:h}, ...r] : null; }
+    for (const base of yomiOf(ch)) for (const v of yomiVariants(base, i === 0, i === chs.length - 1)){
+      if (!rd.startsWith(v, pos)) continue;
+      const r = go(i + 1, pos + v.length); if (r) return [{ch, r:v, base}, ...r];
+    }
+    return null;
+  };
+  return go(0, 0);
+}
+let READ_IDX = null;
+function readIdx(){ if (READ_IDX) return READ_IDX; READ_IDX = {};
+  Object.keys(KY()).forEach(k => yomiOf(k).forEach(r => (READ_IDX[r] = READ_IDX[r] || []).push(k))); return READ_IDX; }
+const kanjiOk = (k, w) => { const e = KY()[k]; if (!e || !e[2]) return false; return e[2] >= +w.level.slice(1) - 1; };   // 문제 레벨보다 너무 어려운 한자 제외
+// 표기 오답: 한 글자를 같은 소리의 다른 한자로 바꾼 가짜 표기 (예: 優勝 → 憂勝, 有勝)
+function homophoneFakes(w){
+  const seg = splitReading(w.word, w.reading); if (!seg) return [];
+  const out = [];
+  seg.forEach((t, i) => { if (!HAS_KANJI.test(t.ch)) return;
+    shuffle((readIdx()[t.base] || []).filter(k => k !== t.ch && kanjiOk(k, w))).slice(0, 4).forEach(k => {
+      const f = seg.map((u, j) => j === i ? k : u.ch).join("");
+      if (!out.includes(f) && !S.words.some(x => x.word === f)) out.push(f); }); });
+  // 서로 다른 글자를 바꾼 보기가 고루 섞이도록
+  const byPos = seg.map((_, i) => out.filter(f => [...f][i] !== seg[i].ch));
+  const mixed = []; for (let r = 0; mixed.length < out.length && r < 4; r++) byPos.forEach(l => { if (l[r] && !mixed.includes(l[r])) mixed.push(l[r]); });
+  return mixed;
+}
+// 읽기 오답: 한 글자의 읽기를 그 한자의 다른 읽기로 바꾼 것 (예: 生活 せいかつ → しょうかつ)
+function altReadingFakes(w){
+  const seg = splitReading(w.word, w.reading); if (!seg) return [];
+  const out = [];
+  seg.forEach((t, i) => { if (!HAS_KANJI.test(t.ch)) return;
+    yomiOf(t.ch).filter(r => r !== t.base && r.length >= 2).slice(0, 3).forEach(r => {
+      const f = seg.map((u, j) => j === i ? r : u.r).join("");
+      if (f !== kata2hira(w.reading) && !out.includes(f)) out.push(f); }); });
+  return shuffle(out);
+}
+const sharesKanji = (a, b) => [...a].some(c => HAS_KANJI.test(c) && b.includes(c));
+
+/* JLPT 문자·어휘 6유형 — 레벨별 출제 여부는 공식 구성(가이드북 표6)을 따름 */
+const EXAM_TYPES = {
+  read:  {jp:"漢字読み",     ko:"한자 읽기",    lv:["N1","N2","N3","N4","N5"]},
+  write: {jp:"表記",         ko:"한자 표기",    lv:["N2","N3","N4","N5"]},
+  form:  {jp:"語形成",       ko:"단어 만들기",  lv:["N2"]},
+  blank: {jp:"文脈規定",     ko:"빈칸 채우기",  lv:["N1","N2","N3","N4","N5"]},
+  para:  {jp:"言い換え類義", ko:"비슷한 말",    lv:["N1","N2","N3","N4","N5"]},
+  usage: {jp:"用法",         ko:"쓰임새",       lv:["N1","N2","N3","N4"]}
+};
+const INS = {   // [N4·N5 쉬운 안내문, N3 이상 안내문]
+  read:  ["＿＿＿の ことばは ひらがなで どう かきますか。", "＿＿＿の言葉の読み方として最もよいものを、1・2・3・4から一つえらびなさい。"],
+  write: ["＿＿＿の ことばは どう かきますか。", "＿＿＿の言葉を漢字で書くとき、最もよいものを、1・2・3・4から一つえらびなさい。"],
+  form:  ["（　　）に なにを いれますか。", "（　　）に入れるのに最もよいものを、1・2・3・4から一つえらびなさい。"],
+  blank: ["（　　）に なにを いれますか。", "（　　）に入れるのに最もよいものを、1・2・3・4から一つえらびなさい。"],
+  para:  ["＿＿＿の ことばと だいたい おなじ いみの ことばは どれですか。", "＿＿＿の言葉に意味が最も近いものを、1・2・3・4から一つえらびなさい。"],
+  usage: ["つぎの ことばの つかいかたで いちばん いい ものを えらんで ください。", "次の言葉の使い方として最もよいものを、1・2・3・4から一つえらびなさい。"]
+};
+// 품사 묶음: 같은 묶음끼리만 보기로 섞음
+const posGroup = w => { const p = firstPos(w);
+  return /동사/.test(p) ? "verb" : p === "형용사" ? "adj" : p === "형용동사" ? "na" : p === "부사" ? "adv" : p === "명사" ? "noun" : p; };
+// 한국어 뜻을 낱말 단위로 (괄호 설명·기호 제거)
+const koToks = m => new Set(String(m).split(/[\/,;·、]/).map(x => x.replace(/[(（〔\[][^)）〕\]]*[)）〕\]]/g, "").replace(/[^가-힣]/g, "")).filter(x => x.length >= 2));
+const overlap = (a, b) => { let n = 0; a.forEach(x => { if (b.has(x)) n++; }); return n; };
+const ALLK = /^[㐀-鿿々]+$/;
+// 비슷한 말 정답 후보: 뜻이 겹치되, 한자음이 같아 생긴 동음이의(市長·市場 → 시장)는 빼기
+function synonymOf(w){
+  const tw = koToks(w.meaning_ko), g = posGroup(w);
+  const sinoLike = (x, t) => ALLK.test(x.word) && [...x.word].length === t.length;
+  const c = S.words.filter(x => {
+    if (x.word === w.word || x.reading === w.reading || posGroup(x) !== g || w.word.includes(x.word) || x.word.includes(w.word)) return false;
+    const tx = koToks(x.meaning_ko), shared = [...tw].filter(t => tx.has(t));
+    if (!shared.length) return false;
+    if (shared.every(t => sinoLike(x, t) && sinoLike(w, t))) return false;
+    if (g === "noun") return shared.length >= 2 || [...x.word].some(ch => HAS_KANJI.test(ch) && w.word.includes(ch));
+    return true;
+  });
+  const sameLv = c.filter(x => lvNum(x.level) <= lvNum(w.level));
+  return (sameLv.length ? sameLv : c)[Math.random() * (sameLv.length || c.length) | 0] || null;
+}
+// 단어 만들기(語形成): 접두·접미 한 글자를 빈칸으로
+const AFFIX_PRE = [["不","無","非","未"], ["再","超","反","副","準"], ["高","低","最","超"], ["新","旧","元","前","初"], ["全","総","各","諸","主"], ["半","真","大","小"]];
+const AFFIX_SUF = [["的","性","化","感"], ["者","家","員","手"], ["力","率","度","性"], ["費","料","代","金"], ["界","層","側","面"], ["観","論","法","式"], ["上","下","中","後"], ["製","産","用","風","状","型"]];
+const ALL_PRE = [...new Set(AFFIX_PRE.flat())], ALL_SUF = [...new Set(AFFIX_SUF.flat())];
+function affixOf(w){
+  const wd = w.word, has = t => S.words.some(x => x.word === t);
+  if ([...wd].length >= 3 && ALL_PRE.includes(wd[0]) && has(wd.slice(1))) return {side:"pre", a:wd[0], base:wd.slice(1)};
+  if ([...wd].length >= 3 && ALL_SUF.includes(wd.slice(-1)) && has(wd.slice(0, -1))) return {side:"suf", a:wd.slice(-1), base:wd.slice(0, -1)};
+  return null;
+}
+function examTypesFor(w){
+  const hasK = HAS_KANJI.test(w.word) && w.reading && w.reading !== w.word;
+  return Object.keys(EXAM_TYPES).filter(t => EXAM_TYPES[t].lv.includes(w.level) && (
+    t === "read" || t === "write" ? hasK : t === "form" ? !!affixOf(w) : true));
+}
+function makeExam(w, force){
   const text = exText(w), at = text.indexOf(w.word);
   const before = esc(text.slice(0, at)), after = esc(text.slice(at + w.word.length));
-  const hasK = HAS_KANJI.test(w.word) && w.reading && w.reading !== w.word;
   const formal = w.level === "N1" || w.level === "N2" || w.level === "N3";
-  const types = hasK ? ["read", "write", "blank"] : ["blank"];
-  let type = types[Math.random() * types.length | 0], correct, others = [], ins, sent;
-
-  if (type === "read"){
-    correct = w.reading;
-    others = readingFakes(w.reading).slice(0, 3);
-    if (others.length < 3) others = others.concat(pickOthers(S.words.map(x => x.reading), 3 - others.length,
-      r => r !== correct && !others.includes(r) && Math.abs(r.length - correct.length) <= 1 && r[0] === correct[0]));
-    if (others.length < 3) type = "blank";
-    else {
-      ins = formal ? "＿＿＿の言葉の読み方として最もよいものを、1・2・3・4から一つえらびなさい。" : "＿＿＿の ことばは ひらがなで どう かきますか。";
+  let types = examTypesFor(w);
+  if (force && types.includes(force)) types = [force];
+  for (const type of shuffle(types)){
+    let correct, others = [], sent, hl = "";
+    if (type === "read"){
+      correct = w.reading;
+      const alt = altReadingFakes(w).slice(0, 1 + (Math.random() < .5 ? 1 : 0));
+      others = [...alt, ...readingFakes(w.reading).filter(r => !alt.includes(r))].slice(0, 3);
+      if (others.length < 3) others = others.concat(pickOthers(S.words.map(x => x.reading), 3 - others.length,
+        r => r !== correct && !others.includes(r) && Math.abs(r.length - correct.length) <= 1 && r[0] === correct[0]));
       sent = `${before}<u>${esc(w.word)}</u>${after}`;
     }
-  }
-  if (type === "write"){
-    correct = w.word;
-    const len = [...w.word].length, ks = [...w.word].filter(c => HAS_KANJI.test(c));
-    const same = x => x.word !== w.word && x.reading !== w.reading && [...x.word].length === len && HAS_KANJI.test(x.word);
-    others = pickOthers(S.words, 3, x => same(x) && [...x.word].some(c => ks.includes(c))).map(x => x.word);
-    // 한 글자 + 오쿠리가나 단어: 읽는 소리가 같은(또는 비슷한) 다른 한자로 바꾼 가짜 표기 (例: 濡れる → 塗れる)
-    const m1 = w.word.match(/^(.)([ぁ-ん]*)$/);
-    if (m1 && HAS_KANJI.test(m1[1]) && w.reading.endsWith(m1[2])){
-      const kr = w.reading.slice(0, w.reading.length - m1[2].length), km = kunMap();
-      const easy = k => KLV[k] <= lvNum(w.level) + 1;      // 문제 레벨보다 너무 어려운 한자는 빼기
-      const sameR = Object.keys(km).filter(k => k !== m1[1] && easy(k) && km[k].has(kr));
-      const nearR = Object.keys(km).filter(k => k !== m1[1] && easy(k) && [...km[k]].some(r => r[0] === kr[0] && r.length === kr.length));
-      for (const k of [...shuffle(sameR), ...shuffle(nearR)]){
-        if (others.length >= 3) break;
-        const f = k + m1[2];
-        if (!others.includes(f) && !S.words.some(x => x.word === f && x.reading === w.reading)) others.push(f);
+    if (type === "write"){
+      correct = w.word;
+      const len = [...w.word].length, ks = [...w.word].filter(c => HAS_KANJI.test(c));
+      const same = x => x.word !== w.word && x.reading !== w.reading && [...x.word].length === len && HAS_KANJI.test(x.word);
+      others = homophoneFakes(w).slice(0, 3);
+      if (others.length < 3) others = others.concat(pickOthers(S.words, 3 - others.length, x => same(x) && !others.includes(x.word) && [...x.word].some(c => ks.includes(c))).map(x => x.word));
+      // 한 글자 + 오쿠리가나 단어: 읽는 소리가 같은(또는 비슷한) 다른 한자로 바꾼 가짜 표기 (例: 濡れる → 塗れる)
+      const m1 = w.word.match(/^(.)([ぁ-ん]*)$/);
+      if (m1 && HAS_KANJI.test(m1[1]) && w.reading.endsWith(m1[2])){
+        const kr = w.reading.slice(0, w.reading.length - m1[2].length), km = kunMap();
+        const easy = k => KLV[k] <= lvNum(w.level) + 1;
+        const sameR = Object.keys(km).filter(k => k !== m1[1] && easy(k) && km[k].has(kr));
+        const nearR = Object.keys(km).filter(k => k !== m1[1] && easy(k) && [...km[k]].some(r => r[0] === kr[0] && r.length === kr.length));
+        for (const k of [...shuffle(sameR), ...shuffle(nearR)]){
+          if (others.length >= 3) break;
+          const f = k + m1[2];
+          if (!others.includes(f) && !S.words.some(x => x.word === f && x.reading === w.reading)) others.push(f);
+        }
       }
+      const kpool = S.bank[w.level].flatMap(x => [...x.word].filter(c => HAS_KANJI.test(c)));
+      for (let t = 0; others.length < 3 && t < 40; t++){
+        const a = [...w.word], idx = a.map((c, i) => HAS_KANJI.test(c) ? i : -1).filter(i => i >= 0);
+        a[idx[Math.random() * idx.length | 0]] = kpool[Math.random() * kpool.length | 0];
+        const f = a.join("");
+        if (f !== w.word && !others.includes(f) && !S.words.some(x => x.word === f && x.reading === w.reading)) others.push(f);
+      }
+      sent = `${before}<u>${esc(w.reading)}</u>${after}`;
     }
-    // 그래도 모자라면 한자 한 글자를 다른 단어의 한자로 바꾼 가짜 표기
-    const kpool = S.bank[w.level].flatMap(x => [...x.word].filter(c => HAS_KANJI.test(c)));
-    for (let t = 0; others.length < 3 && t < 40; t++){
-      const a = [...w.word], idx = a.map((c, i) => HAS_KANJI.test(c) ? i : -1).filter(i => i >= 0);
-      a[idx[Math.random() * idx.length | 0]] = kpool[Math.random() * kpool.length | 0];
-      const f = a.join("");
-      if (f !== w.word && !others.includes(f) && !S.words.some(x => x.word === f && x.reading === w.reading)) others.push(f);
+    if (type === "form"){
+      const af = affixOf(w); correct = af.a;
+      const groups = af.side === "pre" ? AFFIX_PRE : AFFIX_SUF, all = af.side === "pre" ? ALL_PRE : ALL_SUF;
+      const make = c => af.side === "pre" ? c + af.base : af.base + c;
+      const fine = c => c !== af.a && !others.includes(c) && !S.words.some(x => x.word === make(c));   // 진짜 단어가 되는 보기는 빼기
+      const near = groups.filter(g => g.includes(af.a)).flat();
+      others = shuffle(near).filter(fine).slice(0, 3);
+      if (others.length < 3) others = others.concat(shuffle(all).filter(fine).slice(0, 3 - others.length));
+      const blank = `<span class="blank">（　　）</span>`;
+      sent = before + (af.side === "pre" ? blank + esc(af.base) : esc(af.base) + blank) + after;
     }
-    ins = formal ? "＿＿＿の言葉を漢字で書くとき、最もよいものを、1・2・3・4から一つえらびなさい。" : "＿＿＿の ことばは どう かきますか。";
-    sent = `${before}<u>${esc(w.reading)}</u>${after}`;
+    if (type === "blank"){
+      correct = w.word;
+      const pos = firstPos(w), len = [...w.word].length;
+      const tw = koToks(w.meaning_ko), g = posGroup(w);
+      const ok = x => x.word !== w.word && x.meaning_ko !== w.meaning_ko && !text.includes(x.word) && x.reading !== w.reading && !overlap(koToks(x.meaning_ko), tw);
+      const near = lvNum(w.level), lvOk = x => Math.abs(lvNum(x.level) - near) <= 1;
+      const ending = x => /[ぁ-ん]$/.test(w.word) ? x.word.slice(-1) === w.word.slice(-1) : true;    // 동사·형용사는 끝 글자도 맞추기
+      others = pickOthers(S.words, 3, x => ok(x) && lvOk(x) && posGroup(x) === g && sharesKanji(x.word, w.word) && [...x.word].length === len).map(x => x.word);
+      if (others.length < 3) others = others.concat(pickOthers(S.bank[w.level], 3 - others.length, x => ok(x) && !others.includes(x.word) && posGroup(x) === g && ending(x) && Math.abs([...x.word].length - len) <= 1).map(x => x.word));
+      if (others.length < 3) others = others.concat(pickOthers(S.bank[w.level], 3 - others.length, x => ok(x) && !others.includes(x.word) && firstPos(x) === pos && Math.abs([...x.word].length - len) <= 1).map(x => x.word));
+      if (others.length < 3) others = others.concat(pickOthers(S.bank[w.level], 3 - others.length, x => ok(x) && firstPos(x) === pos && !others.includes(x.word)).map(x => x.word));
+      if (others.length < 3) others = others.concat(pickOthers(S.words, 3 - others.length, x => ok(x) && !others.includes(x.word)).map(x => x.word));
+      sent = `${before}<span class="blank">（　　）</span>${after}`;
+    }
+    if (type === "para"){
+      const syn = synonymOf(w); if (!syn) continue;
+      correct = syn.word;
+      const tw = koToks(w.meaning_ko), ts = koToks(syn.meaning_ko), g = posGroup(w);
+      const ok = x => x.word !== w.word && x.word !== syn.word && posGroup(x) === g && !overlap(koToks(x.meaning_ko), tw) && !overlap(koToks(x.meaning_ko), ts);
+      const lvOk = x => Math.abs(lvNum(x.level) - lvNum(w.level)) <= 1;
+      others = pickOthers(S.words, 2, x => ok(x) && lvOk(x) && (sharesKanji(x.word, w.word) || sharesKanji(x.word, syn.word))).map(x => x.word);
+      if (others.length < 3) others = others.concat(pickOthers(S.bank[w.level], 3 - others.length, x => ok(x) && !others.includes(x.word) && Math.abs([...x.word].length - [...syn.word].length) <= 1).map(x => x.word));
+      if (others.length < 3) others = others.concat(pickOthers(S.bank[w.level], 3 - others.length, x => ok(x) && !others.includes(x.word)).map(x => x.word));
+      sent = `${before}<u>${esc(w.word)}</u>${after}`;
+    }
+    if (type === "usage"){
+      // 정답: 이 단어의 예문 / 오답: 같은 품사 다른 단어의 예문에 이 단어를 끼워 넣은 문장
+      const g = posGroup(w), tw = koToks(w.meaning_ko);
+      const nextOf = (t, wd) => t.charAt(t.indexOf(wd) + wd.length);
+      const suru = (t, wd) => t.slice(t.indexOf(wd) + wd.length).startsWith("し") || t.slice(t.indexOf(wd) + wd.length).startsWith("する");
+      const myNext = nextOf(text, w.word), mySuru = /サ변/.test(w.pos || "");
+      const base = x => x.word !== w.word && posGroup(x) === g && firstPos(x) === firstPos(w) && canExam(x)
+        && !overlap(koToks(x.meaning_ko), tw) && [...x.word].length >= 2 && !exText(x).includes(w.word)
+        && (!suru(exText(x), x.word) || mySuru);                     // 「~する」 자리에는 する가 붙는 말만
+      const pool = shuffle(S.bank[w.level].concat(S.words.filter(x => Math.abs(lvNum(x.level) - lvNum(w.level)) <= 1)));
+      let src = pickOthers(pool, 3, x => base(x) && nextOf(exText(x), x.word) === myNext);       // 뒤 글자(조사)까지 같은 문장 우선
+      if (src.length < 3) src = src.concat(pickOthers(pool, 3 - src.length, x => base(x) && !src.includes(x) && /[はがをにでとのもへ]/.test(nextOf(exText(x), x.word)) === /[はがをにでとのもへ]/.test(myNext)));
+      if (src.length < 3) continue;
+      correct = text; hl = w.word;
+      others = src.map(x => exText(x).replace(x.word, w.word));
+      sent = `<span class="target">${esc(w.word)}</span>`;
+    }
+    if (!correct || others.length < 3) continue;
+    const opts = shuffle([correct, ...others.slice(0, 3)]);
+    return {type, ins: INS[type][formal ? 1 : 0], sent, opts, answer: opts.indexOf(correct), picked: -1, hl};
   }
-  if (type === "blank"){
-    correct = w.word;
-    const pos = firstPos(w), len = [...w.word].length;
-    const ok = x => x.word !== w.word && x.meaning_ko !== w.meaning_ko && !text.includes(x.word) && x.reading !== w.reading;
-    others = pickOthers(S.bank[w.level], 3, x => ok(x) && firstPos(x) === pos && Math.abs([...x.word].length - len) <= 1).map(x => x.word);
-    if (others.length < 3) others = others.concat(pickOthers(S.bank[w.level], 3 - others.length, x => ok(x) && firstPos(x) === pos && !others.includes(x.word)).map(x => x.word));
-    if (others.length < 3) others = others.concat(pickOthers(S.words, 3 - others.length, x => ok(x) && !others.includes(x.word)).map(x => x.word));
-    ins = formal ? "（　　）に入れるのに最もよいものを、1・2・3・4から一つえらびなさい。" : "（　　）に なにを いれますか。";
-    sent = `${before}<span class="blank">（　　）</span>${after}`;
-  }
-  const opts = shuffle([correct, ...others.slice(0, 3)]);
-  return {type, ins, sent, opts, answer: opts.indexOf(correct), picked: -1};
+  return makeExam(w, "blank");     // 어떤 유형도 못 만들면 빈칸 채우기
+}
+// 결과 칸 정답 표시: 보기에 뜻이 안 붙는 유형(읽기·단어 만들기·쓰임새)은 뜻을 함께
+function examAnswer(w){
+  const q = S.q, a = q.opts[q.answer], rd = w.reading === w.word ? "" : ` (${esc(w.reading)})`;
+  if (q.type === "read") return `<span class="jp">${esc(a)}</span> · ${esc(w.word)} · ${esc(w.meaning_ko)}`;
+  if (q.type === "form") return `<span class="jp">${esc(a)}</span> → ${esc(w.word)}${rd} · ${esc(w.meaning_ko)}`;
+  if (q.type === "usage") return `${q.answer + 1}번 문장 · ${esc(w.word)}${rd} · ${esc(w.meaning_ko)}`;
+  if (q.type === "para") return `<span class="jp">${esc(a)}</span> ≒ ${esc(w.word)}`;
+  return `<span class="jp">${esc(a)}</span>${rd}`;
 }
 function renderExam(w){
-  const q = S.q, done = S.phase !== "answer";
-  const no = {read:1, write:2, blank:3}[q.type];
-  $("qIns").innerHTML = `<b>もんだい${no}</b>${esc(q.ins)}`;
-  $("qSent").innerHTML = done && q.type === "blank"
-    ? q.sent.replace('<span class="blank">（　　）</span>', `<u>${esc(w.word)}</u>`) : q.sent;
+  const q = S.q, done = S.phase !== "answer", T = EXAM_TYPES[q.type];
+  $("qIns").innerHTML = `<div class="q-type"><b>${T.jp}</b><span>${T.ko}</span></div>${esc(q.ins)}`;
+  let sent = q.sent;
+  if (done && (q.type === "blank" || q.type === "form")) sent = sent.replace('<span class="blank">（　　）</span>', `<u>${esc(q.opts[q.answer])}</u>`);
+  $("qSent").innerHTML = sent;
+  $("qSent").classList.toggle("usage", q.type === "usage");
   $("qKo").textContent = w.example_ko || ""; $("qKo").classList.toggle("show", done && !!w.example_ko);
   $("chipQ").textContent = w.level; $("rvTagQ").classList.toggle("on", S.review.has(w.id));
-  const gloss = t => { if (!done || q.type === "read") return ""; const x = S.words.find(v => v.word === t); return x ? esc(x.meaning_ko) : ""; };
+  const gloss = t => { if (!done || q.type === "read" || q.type === "form" || q.type === "usage") return "";
+    const x = S.words.find(v => v.word === t); return x ? esc(x.meaning_ko) : ""; };
+  const label = t => q.hl ? esc(t).split(esc(q.hl)).join(`<u>${esc(q.hl)}</u>`) : esc(t);
+  $("qOpts").classList.toggle("sent-opts", q.type === "usage");
   $("qOpts").innerHTML = q.opts.map((t, i) => {
     const cls = !done ? "" : i === q.answer ? "right" : i === q.picked ? "wrong" : "dim";
-    return `<button class="opt ${cls}" data-i="${i}" ${done ? "disabled" : ""}><span class="no">${i + 1}</span><span class="tx"><span class="w">${esc(t)}</span><span class="gl">${gloss(t)}</span></span></button>`;
+    return `<button class="opt ${cls}" data-i="${i}" ${done ? "disabled" : ""}><span class="no">${i + 1}</span><span class="tx"><span class="w">${label(t)}</span><span class="gl">${gloss(t)}</span></span></button>`;
   }).join("");
   if (!done) $("qOpts").querySelectorAll(".opt").forEach(b => b.onclick = () => pickOption(+b.dataset.i));
   $("exam").classList.toggle("done", done);
@@ -371,7 +586,7 @@ function pickOption(i){
   if (S.phase !== "answer") return;
   const w = S.deck[S.idx];
   S.q.picked = i;
-  S.recog = S.q.opts[i];
+  S.recog = S.q.type === "usage" ? `${i + 1}번 문장` : S.q.opts[i];
   finishGrade(w, i === S.q.answer);
 }
 
@@ -666,7 +881,7 @@ function updateUI(){
 
   const v = $("verdict"), act = $("action");
   // 시험: 보기마다 뜻이 붙으므로 결과 칸에는 읽기 문제일 때만 뜻을 덧붙임
-  const ansHTML = S.qm === "test" ? `<span class="jp">${esc(S.q.opts[S.q.answer])}</span>` + (S.q.type === "read" ? ` · ${esc(w.word)} · ${esc(w.meaning_ko)}` : w.reading === w.word ? "" : ` (${esc(w.reading)})`)
+  const ansHTML = S.qm === "test" ? examAnswer(w)
     : S.qm === "ko" ? esc(w.meaning_ko)
     : `<span class="jp">${esc(w.word)}</span>` + (w.reading === w.word ? "" : ` (${esc(w.reading)})`);
   if (S.phase === "self"){
@@ -752,6 +967,6 @@ function renderResult(){
   }
   let words = null;
   try { words = await DB.get("words"); } catch(_) {}
-  if (words && words.length){ useWords(words); show("homeView"); }
+  if (words && words.length){ useWords(words); show("mainView"); }
   else show("setupView");
 })();

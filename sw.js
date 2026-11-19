@@ -1,7 +1,7 @@
 /* 오프라인 동작: 앱 파일은 인터넷이 되면 최신으로 받고 저장, 안 되면 저장본 사용 */
-const VERSION = "tango-v7";
-const SHELL = ["./", "index.html", "app.js", "segment.js", "recognizer.js", "patterns.js", "manifest.webmanifest",
-               "icon-180.png", "icon-192.png", "icon-512.png"];
+const VERSION = "tango-v12";
+const SHELL = ["./", "index.html", "app.js", "segment.js", "kanjiyomi.js", "recognizer.js", "patterns.js", "manifest.webmanifest",
+               "icon-180.png", "icon-192.png", "icon-512.png", "wood.jpg", "wood-wide.jpg"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, {cache: "reload"})))).then(() => self.skipWaiting()));
