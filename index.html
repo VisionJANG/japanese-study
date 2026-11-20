@@ -595,6 +595,142 @@
   .type .tx span{display:block; margin-top:3px; font-size:12.5px; line-height:1.45; color:var(--ink-2); word-break:keep-all}
   .type .soon{flex:none; font-size:11.5px; font-weight:600; color:var(--ink-3); padding:4px 8px; border-radius:99px; background:#F1F3F7}
   .wide .types{display:grid; grid-template-columns:1fr 1fr}
+
+  /* ================= 단어장 하단: 하나로 묶인 흰 독(dock) 안에 ‹ / 외웠어요 / 다음 ================= */
+  #memoBtn, #forgotBtn, #knowBtn{display:none}
+  #action .nx{display:none}
+  .qm-book .acts{gap:6px; padding:6px; border-radius:22px; background:#fff;
+    box-shadow:0 0 0 1px rgba(20,30,50,.06), 0 12px 28px -12px rgba(20,30,50,.28), 0 2px 6px rgba(20,30,50,.05)}
+  .qm-book .acts .btn{height:52px; border-radius:16px; font-size:15.5px; font-weight:600; letter-spacing:-.01em; box-shadow:none}
+  .qm-book #prevBtn{display:flex; flex:0 0 76px; gap:2px; align-items:center; justify-content:center; padding:0; background:#F2F4F8; color:var(--ink-2)}
+  .qm-book #prevBtn span{display:inline; font-size:14.5px}
+  .qm-book #prevBtn svg{width:18px; height:18px}
+  .qm-book #prevBtn:disabled{opacity:1; color:#C3CAD5; background:#F6F7FA}
+  .qm-book #memoBtn{display:flex; flex:1}
+  .qm-book #action{display:flex; flex:1.05; align-items:center; justify-content:center; gap:4px;
+    background:var(--brand); color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 8px 16px -10px rgba(30,80,162,.9)}
+  .qm-book #action .nx{display:block; width:18px; height:18px; margin-right:-4px}
+  .qm-book.due #memoBtn, .qm-book.due #action{display:none}
+  .qm-book.due #forgotBtn, .qm-book.due #knowBtn{display:flex; flex:1}
+  .memo-btn, .know-btn, .forgot-btn{align-items:center; justify-content:center; gap:8px}
+  .qm-book .acts .btn:active{transform:scale(.97)}
+  /* 외웠어요: 꺼짐 = 투명 바탕 + 빈 동그라미 / 켜짐 = 연초록 바탕 + 초록 체크 */
+  .memo-btn{background:transparent; color:var(--ink-2); transition:background .2s, color .2s}
+  .ck, .xk{display:grid; place-items:center; flex:none; width:22px; height:22px; border-radius:50%; transition:background .2s, box-shadow .2s}
+  .ck{border-radius:6px; box-shadow:inset 0 0 0 1.8px #C3CCD9}
+  .ck svg, .xk svg{width:13px; height:13px; color:#fff}
+  .ck svg{opacity:0; transform:scale(.5); transition:opacity .2s, transform .28s cubic-bezier(.3,1.7,.5,1)}
+  .memo-btn[aria-pressed="true"]{background:#EAF8F0; color:#17794A}
+  .memo-btn[aria-pressed="true"] .ck, .know-btn .ck{background:#2DB673; box-shadow:none}
+  .memo-btn[aria-pressed="true"] .ck svg, .know-btn .ck svg{opacity:1; transform:none}
+  .know-btn{background:#2DB673 !important; color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 8px 16px -10px rgba(45,182,115,.9) !important}
+  .know-btn .ck{background:rgba(255,255,255,.28) !important}
+  .forgot-btn{background:#FFF3F0; color:#C8442D}
+  .xk{border-radius:6px; background:#E8604A}
+  .compact .qm-book .acts .btn, .compact.qm-book .acts .btn{height:44px; font-size:14.5px}
+  .compact.qm-book #prevBtn{flex-basis:66px}
+  .compact.qm-book .acts{padding:5px; border-radius:18px}
+
+
+  /* 단어장: 좌우 스와이프로 넘기기 (이전/다음 버튼 없음) */
+  .qm-book #prevBtn, .qm-book #action{display:none !important}
+  .qm-book .flash{position:relative; touch-action:pan-y; user-select:none; -webkit-user-select:none}
+  .flash.swiping{transition:none !important}
+  .flash.noflip .flash-inner{transition:none !important}
+  .flash.settle{transition:transform .28s cubic-bezier(.2,.8,.2,1), opacity .28s !important}
+  .swipe-hint{display:none}
+  .qm-book .swipe-hint{display:flex; position:absolute; z-index:5; left:50%; top:50%; transform:translate(-50%,-50%);
+    flex-direction:column; align-items:center; gap:10px; padding:18px 26px 16px; border-radius:18px;
+    background:rgba(24,32,48,.82); color:#fff; pointer-events:none; opacity:0; visibility:hidden;
+    transition:opacity .9s ease, visibility 0s linear .9s; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px)}
+  .swipe-hint.on{opacity:1; visibility:visible; transition:opacity .25s ease}
+  .swipe-hint b{font-size:14.5px; font-weight:600; letter-spacing:-.01em; white-space:nowrap}
+  .swipe-hint .sh-arrows{position:absolute; top:22px; width:120px; height:24px; color:rgba(255,255,255,.55)}
+  .swipe-hint .sh-hand{width:34px; height:34px; color:#182030; animation:shSwipe 1.6s ease-in-out infinite}
+  @keyframes shSwipe{0%,100%{transform:translateX(-26px) rotate(-8deg)} 50%{transform:translateX(26px) rotate(8deg)}}
+  @media (prefers-reduced-motion:reduce){ .swipe-hint .sh-hand{animation:none} }
+
+
+  /* 외웠어요 버튼 (단어장 하단 단독 버튼) */
+  .qm-book .acts{background:none !important; box-shadow:none !important; padding:0 !important; gap:10px !important;
+    justify-content:center; align-items:center}
+  .qm-book .acts .btn{height:54px; border-radius:999px; font-size:15.5px; font-weight:700; letter-spacing:-.01em}
+  .qm-book #memoBtn{flex:0 1 340px !important; width:100%; gap:10px; position:relative; overflow:hidden;
+    background:#fff; color:var(--ink); box-shadow:0 0 0 1px #DDE2EA, 0 10px 24px -14px rgba(20,30,50,.35), 0 1px 2px rgba(20,30,50,.05);
+    transition:background .25s, color .25s, box-shadow .25s}
+  .qm-book #memoBtn .ck{width:22px; height:22px; border-radius:7px; box-shadow:inset 0 0 0 2px #C3CCD9; transition:background .25s, box-shadow .25s}
+  .qm-book #memoBtn[aria-pressed="true"]{background:#1FA463; color:#fff;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 12px 24px -12px rgba(31,164,99,.85)}
+  .qm-book #memoBtn[aria-pressed="true"] .ck{background:#fff; box-shadow:none; animation:ckPop .38s cubic-bezier(.3,1.6,.5,1)}
+  .qm-book #memoBtn[aria-pressed="true"] .ck svg{color:#1FA463; opacity:1; transform:none}
+  @keyframes ckPop{0%{transform:scale(.6)} 100%{transform:scale(1)}}
+  .qm-book.due #forgotBtn, .qm-book.due #knowBtn{flex:0 1 200px !important}
+  .qm-book .forgot-btn{background:#fff; color:#C8442D; box-shadow:0 0 0 1px #F2D3CC, 0 10px 24px -14px rgba(20,30,50,.3) !important}
+  .qm-book .forgot-btn .xk, .qm-book .know-btn .ck{width:22px; height:22px; border-radius:7px}
+  .qm-book .know-btn{background:#1FA463 !important; box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 12px 24px -12px rgba(31,164,99,.85) !important}
+  .compact .qm-book .acts .btn, .compact.qm-book .acts .btn{height:46px}
+  @media (prefers-reduced-motion:reduce){ .qm-book #memoBtn .ck{animation:none !important} }
+
+
+  /* 외웠어요: 카드 아랫단에 붙은 띠 (카드와 함께 넘어감) */
+  .card-foot{display:none}
+  .qm-book #bottom{display:none !important}
+  .qm-book .face{padding-bottom:calc(var(--foot) + 12px)}
+  .qm-book .main{--foot:58px; margin-bottom:10px}
+  .compact .qm-book .main, .compact.qm-book .main{--foot:50px}
+  .qm-book .card-foot{display:flex; position:absolute; left:0; right:0; bottom:0; height:var(--foot);
+    border-top:1.5px dashed #DCE1E9; background:#FBFCFD; transition:background .25s, border-color .25s}
+  .card-foot button{flex:1; display:flex; align-items:center; justify-content:center; gap:9px; border:0; background:none; padding:0;
+    font:inherit; font-size:15.5px; font-weight:700; letter-spacing:-.01em; color:var(--ink-2); cursor:pointer; -webkit-tap-highlight-color:transparent}
+  .card-foot button:active span{opacity:.6}
+  .card-foot .ck, .card-foot .xk{width:22px; height:22px; border-radius:7px}
+  .card-foot .cf-memo .ck{box-shadow:inset 0 0 0 2px #C3CCD9}
+  .card-foot .cf-forgot, .card-foot .cf-know{display:none}
+  .flash.is-memo .card-foot{background:#EAF8F0; border-top-color:#BFE8D1}
+  .flash.is-memo .cf-memo{color:#17794A}
+  .flash.is-memo .cf-memo .ck{background:#1FA463; box-shadow:none; animation:ckPop .38s cubic-bezier(.3,1.6,.5,1)}
+  .flash.is-memo .cf-memo .ck svg{color:#fff; opacity:1; transform:none}
+  .flash.is-due .cf-memo{display:none}
+  .flash.is-due .cf-forgot, .flash.is-due .cf-know{display:flex}
+  .flash.is-due .card-foot{background:#FFF8F1; border-top-color:#F6D5B3}
+  .card-foot .cf-forgot{color:#C8442D; border-right:1.5px dashed #F6D5B3}
+  .card-foot .cf-know{color:#17794A}
+  .card-foot .cf-know .ck{background:#1FA463}
+  .card-foot .cf-know .ck svg, .card-foot .xk svg{opacity:1; transform:none; color:#fff}
+  .qm-book .flash .memo-tag{display:none !important}
+  @media (prefers-reduced-motion:reduce){ .flash.is-memo .cf-memo .ck{animation:none} }
+
+  /* 외운 단어 카드: 연초록 테두리 + 표시 / 복습할 때가 된 카드: 주황 표시 */
+  .flash.is-memo .face{box-shadow:0 0 0 2.5px #8ED9AE, 0 1px 2px rgba(20,30,50,.04), 0 12px 32px rgba(20,30,50,.08)}
+  .face .memo-tag, .face .due-tag{position:absolute; top:14px; left:44px; display:none; align-items:center; gap:4px; height:22px; padding:0 9px 0 7px; border-radius:99px;
+    font-size:11.5px; font-weight:700}
+  .face .memo-tag{background:#E9F8EF; color:#1E8A52}
+  .face .memo-tag::before{content:""; width:10px; height:6px; margin-top:-3px; border-left:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(-45deg)}
+  .flash.is-memo .memo-tag{display:inline-flex}
+  .face .due-tag{background:#FFF1E2; color:#C2620A; padding-left:9px}
+  .flash.is-due .face{box-shadow:0 0 0 2.5px #F7C08A, 0 1px 2px rgba(20,30,50,.04), 0 12px 32px rgba(20,30,50,.08)}
+  .flash.is-due .due-tag{display:inline-flex}
+  .flash.is-due .memo-tag{display:none}
+
+  /* 홈: 단어장 설정 스위치 */
+  /* 외운 단어 건너뛰기: 포스트잇 플래그(인덱스 스티커) — 레벨 제목 오른쪽에 붙음 */
+  .book-opt{display:none; position:relative; align-items:stretch; height:30px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+    transform:rotate(-1.5deg); filter:drop-shadow(0 3px 4px rgba(40,50,70,.13)); transition:transform .2s}
+  .book-opt.show{display:inline-flex}
+  .book-opt:active{transform:rotate(-1.5deg) scale(.96)}
+  .book-opt input{position:absolute; opacity:0; pointer-events:none}
+  .book-opt .tip{display:grid; place-items:center; width:26px; border-radius:3px 0 0 3px; background:#C9D1DD; transition:background .25s}
+  .book-opt .tip svg{width:14px; height:14px; color:#fff; opacity:0; transform:scale(.4); transition:opacity .2s, transform .3s cubic-bezier(.3,1.7,.5,1)}
+  .book-opt span{display:flex; align-items:center; padding:0 12px 0 9px; border-radius:0 3px 3px 0;
+    background:rgba(255,255,255,.82); box-shadow:inset 0 0 0 1px rgba(150,165,190,.35); font-size:13px; font-weight:600; letter-spacing:-.01em;
+    color:var(--ink-2); white-space:nowrap; transition:background .25s, color .25s, box-shadow .25s}
+  .book-opt input:checked + .tip{background:#1FA463}
+  .book-opt input:checked + .tip svg{opacity:1; transform:none}
+  .book-opt input:checked ~ span{background:rgba(214,243,226,.92); box-shadow:inset 0 0 0 1px rgba(31,164,99,.28); color:#17794A}
+  .book-opt input:focus-visible ~ span{outline:2px solid var(--brand); outline-offset:2px}
+  .sec{align-items:center}
+  .compact .book-opt{margin-top:12px; margin-left:2px}
+  .compact .book-opt.show{display:flex; width:max-content}
 </style>
 </head>
 <body>
@@ -636,6 +772,7 @@
         <button data-m="book"><span>단어장</span></button><button data-m="jp"><span>일본어 쓰기</span></button><button data-m="ko"><span>뜻 쓰기</span></button><button data-m="test"><span>시험</span></button>
       </nav>
       <p class="mode-desc" id="homeSub"></p>
+      <label class="book-opt" id="bookOpt"><input type="checkbox" id="hideMemo"><i class="tip" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>외운 단어는 건너뛰기</span></label>
     </div>
     <div class="sec">레벨</div>
     <div class="decks" id="decks"></div>
@@ -656,9 +793,15 @@
 
         <div class="main" id="main">
           <div class="flash" id="flash">
+            <div class="swipe-hint" id="swipeHint" aria-hidden="true">
+              <svg class="sh-arrows" viewBox="0 0 120 24"><path d="M14 6 6 12l8 6M106 6l8 6-8 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg class="sh-hand" viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10m0-.5V4.5a1.5 1.5 0 0 1 3 0V10m0-1a1.5 1.5 0 0 1 3 0v4.5c0 3.6-2.6 6.5-6.2 6.5h-.8c-2 0-3.4-.8-4.6-2.4L4.6 14a1.6 1.6 0 0 1 2.5-2l1.9 2" fill="#fff" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <b>옆으로 밀어서 넘겨요</b>
+            </div>
             <div class="flash-inner">
               <div class="face front">
-                <span class="hole"></span><span class="chip" id="chipF"></span><span class="rv-tag" id="rvTagF">복습</span>
+                <span class="hole"></span><span class="chip" id="chipF"></span><span class="rv-tag" id="rvTagF">복습</span><span class="memo-tag" id="memoTagF">외웠어요</span><span class="due-tag">다시 확인</span>
+                <div class="card-foot"><button type="button" class="cf-memo" data-act="memo" aria-pressed="false"><i class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>외웠어요</span></button><button type="button" class="cf-forgot" data-act="forgot"><i class="xk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></i><span>잊었어요</span></button><button type="button" class="cf-know" data-act="know"><i class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>아직 알아요</span></button></div>
                 <div class="f-hint" id="hint2"></div>
                 <div class="f-meaning" id="meaning"></div>
                 <div class="f-pos" id="pos"></div>
@@ -671,7 +814,8 @@
                 </div>
               </div>
               <div class="face back">
-                <span class="hole"></span><span class="chip" id="chipB"></span><span class="rv-tag" id="rvTagB">복습</span>
+                <span class="hole"></span><span class="chip" id="chipB"></span><span class="rv-tag" id="rvTagB">복습</span><span class="memo-tag" id="memoTagB">외웠어요</span><span class="due-tag">다시 확인</span>
+                <div class="card-foot"><button type="button" class="cf-memo" data-act="memo" aria-pressed="false"><i class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>외웠어요</span></button><button type="button" class="cf-forgot" data-act="forgot"><i class="xk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></i><span>잊었어요</span></button><button type="button" class="cf-know" data-act="know"><i class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>아직 알아요</span></button></div>
                 <div class="b-head">
                   <div class="b-reading" id="reading"></div>
                   <div class="b-kanji" id="kanji"></div>
@@ -716,8 +860,11 @@
         <div class="bottom" id="bottom">
           <div class="verdict" id="verdict"></div>
           <div class="acts">
-            <button class="btn ghost" id="prevBtn">이전</button>
-            <button class="btn primary" id="action">제출</button>
+            <button class="btn ghost" id="prevBtn" aria-label="이전 단어"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg><span>이전</span></button>
+            <button class="btn memo-btn" id="memoBtn" aria-pressed="false"><i class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>외웠어요</span></button>
+            <button class="btn forgot-btn" id="forgotBtn"><i class="xk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></i><span>잊었어요</span></button>
+            <button class="btn know-btn" id="knowBtn"><i class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i><span>아직 알아요</span></button>
+            <button class="btn primary" id="action"><span id="actionLabel">제출</span><svg class="nx" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
           </div>
         </div>
 

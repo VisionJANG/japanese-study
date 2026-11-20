@@ -35,13 +35,16 @@ const DB = {
 };
 const REC_KEY = "jlpt-rec-v1";
 const lvMap = v => ({N5:v(),N4:v(),N3:v(),N2:v(),N1:v()});
-const emptyRec = () => ({learned:lvMap(() => []), wrong:[], learnedKo:lvMap(() => []), wrongKo:[], learnedTest:lvMap(() => []), wrongTest:[], bookPos:lvMap(() => 0),
+const emptyRec = () => ({learned:lvMap(() => []), wrong:[], learnedKo:lvMap(() => []), wrongKo:[], learnedTest:lvMap(() => []), wrongTest:[], bookPos:lvMap(() => 0), memo:{},
                          mode:"book", ok:0, total:0, days:{}, lastLevel:"N5"});
 let REC = emptyRec();
 function loadRec(d){
   const e = emptyRec(), r = Object.assign(e, d || {});
   ["learned","learnedKo","learnedTest","bookPos"].forEach(k => r[k] = Object.assign(emptyRec()[k], (d || {})[k] || {}));
   if (!MODES[r.mode]) r.mode = "book";
+  if (!r.memo || typeof r.memo !== "object") r.memo = {};       // 단어장 「외웠어요」: id → {t: 마지막 확인 시각, s: 복습 단계}
+  Object.keys(r.memo).forEach(k => { if (typeof r.memo[k] === "number") r.memo[k] = {t: r.memo[k], s: 0}; });
+  r.hideMemo = !!r.hideMemo;
   return r;
 }
 try { REC = loadRec(JSON.parse(localStorage.getItem(REC_KEY) || "{}")); } catch(e) {}
@@ -64,7 +67,7 @@ function applyMode(){
   const mode = h < 520 && w > h ? "compact" : (w >= 700 ? "wide" : "vertical");
   if (mode !== S.mode){ $("screen").classList.remove(S.mode); S.mode = mode; }
   $("screen").classList.add(mode);
-  resizeCanvas();
+  resizeCanvas(); placeBookOpt();
   if (S.phase === "answer") requestAnimationFrame(fitFront);
 }
 addEventListener("resize", applyMode);
@@ -107,21 +110,27 @@ $("fileWords").onchange = async e => {
 };
 
 /* ================= 홈 ================= */
+// 외운 단어 건너뛰기 플래그: 세로·아이패드는 「레벨」 제목 오른쪽, 가로는 설명 아래
+function placeBookOpt(){
+  const o = $("bookOpt"), to = S.mode === "compact" ? document.querySelector("#homeView .h-top") : document.querySelector("#homeView .sec");
+  if (o && to && o.parentNode !== to) to.appendChild(o);
+}
 const learnedCount = lv => REC.learned[lv].length;
 function renderHome(){
   const m = REC.mode;
   $("homeSub").textContent = MODES[m].desc;
+  $("bookOpt").classList.toggle("show", m === "book"); $("hideMemo").checked = REC.hideMemo; placeBookOpt();
   document.querySelectorAll("#modeSeg button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
   $("decks").innerHTML = "";
   LEVELS.forEach(lv => {
     const total = S.bank[lv].length; if (!total) return;
-    const n = m === "book" ? Math.min(REC.bookPos[lv], total) : Math.min(learnedOf(m)[lv].length, total), pct = Math.round(n / total * 100);
+    const n = m === "book" ? S.bank[lv].filter(w => REC.memo[w.id]).length : Math.min(learnedOf(m)[lv].length, total), pct = Math.round(n / total * 100);
     const b = document.createElement("button");
     b.className = "deck";
     b.style.setProperty("--lv", LV[lv].c); b.style.setProperty("--lv-strong", LV[lv].s); b.style.setProperty("--lv-d", LV[lv].d); b.style.setProperty("--pi", LV[lv].p);
     b.innerHTML = `<div><div class="lvname">${lv}</div>
       <div class="t">${LV[lv].t}<small>${total.toLocaleString()}단어</small></div></div>
-      <div class="foot"><div class="pct"><small>${n.toLocaleString()}개 ${m === "book" ? "봄" : "학습"}</small>${pct}%</div>
+      <div class="foot"><div class="pct"><small>${n.toLocaleString()}개 ${m === "book" ? "외움" : "학습"}</small>${pct}%</div>
       <div class="meter"><i style="width:${Math.max(pct, n ? 2 : 0)}%"></i></div></div>`;
     b.onclick = () => m === "book" ? startBook(lv) : start(lv, null, "", m);
     $("decks").appendChild(b);
@@ -591,25 +600,109 @@ function pickOption(i){
 }
 
 /* ================= 단어장 ================= */
-function startBook(lv){
+/* 간격 반복: 외웠어요 → 1일 → 3일 → 7일 → 30일 → 90일 뒤에 한 번씩 「다시 확인」 */
+const MEMO_DAYS = [1, 3, 7, 30, 90], DAY = 864e5;
+const isDue = id => { const m = REC.memo[id]; return !!m && m.s < MEMO_DAYS.length && Date.now() - m.t >= MEMO_DAYS[m.s] * DAY; };
+function startBook(lv, again){
   REC.lastLevel = lv; saveRec();
   setQM("book");
-  S.level = lv; S.title = ""; S.deck = S.bank[lv]; S.marks = []; S.review = new Set(); S.isRetry = false;
-  S.idx = Math.min(REC.bookPos[lv] || 0, S.deck.length - 1);
+  S.level = lv; S.title = ""; S.marks = []; S.review = new Set(); S.isRetry = false;
+  const all = S.bank[lv];
+  const due = shuffle(all.filter(w => isDue(w.id)));
+  const rest = shuffle(all.filter(w => !isDue(w.id) && !(REC.hideMemo && REC.memo[w.id])));
+  S.deck = due.concat(rest); S.due = new Set(due.map(w => w.id));
+  if (!S.deck.length){ alertBox("이 레벨의 단어를 모두 외웠어요. 건너뛰기를 끄면 다시 볼 수 있어요"); return; }
+  S.idx = 0;
   S.phase = "book"; clearStamp(); $("flash").classList.remove("flipped");
   updateUI(); show("quizView");
+  if (again) alertBox("한 바퀴 다 봤어요. 새로 섞어서 처음부터 보여드려요"); else showSwipeHint();
 }
-function bookGo(d){
+function bookGo(d, instant){
   const n = S.deck.length;
-  S.idx = d > 0 && S.idx >= n - 1 ? 0 : Math.max(0, Math.min(n - 1, S.idx + d));
-  REC.bookPos[S.level] = S.idx; saveRec();
+  if (d > 0 && S.idx >= n - 1) return startBook(S.level, true);     // 끝까지 보면 새로 섞어서 처음부터
+  S.idx = Math.max(0, Math.min(n - 1, S.idx + d));
   const wasFlipped = $("flash").classList.contains("flipped");
   $("flash").classList.remove("flipped");
-  if (wasFlipped){ fillFront(S.deck[S.idx]); updateBookBar(); setTimeout(updateUI, 320); }
+  if (wasFlipped && !instant){ fillFront(S.deck[S.idx]); updateBookBar(); syncMemo(S.deck[S.idx]); setTimeout(updateUI, 320); }
   else updateUI();
 }
-$("flash").addEventListener("click", () => { if (S.phase === "book") $("flash").classList.toggle("flipped"); });
+/* 스와이프: 왼쪽으로 밀면 다음, 오른쪽으로 밀면 이전. 살짝 탭하면 뒤집기 */
+const SW = {x:0, y:0, dx:0, on:false, lock:null, moved:false, t:0, busy:false};
+const flashEl = $("flash");
+flashEl.addEventListener("pointerdown", e => {
+  hideSwipeHint();
+  if (S.phase !== "book" || SW.busy || (e.pointerType === "mouse" && e.button !== 0)) return;
+  Object.assign(SW, {x:e.clientX, y:e.clientY, dx:0, on:true, lock:null, moved:false, t:performance.now()});
+});
+flashEl.addEventListener("pointermove", e => {
+  if (!SW.on) return;
+  const dx = e.clientX - SW.x, dy = e.clientY - SW.y;
+  if (!SW.lock){ if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    SW.lock = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (SW.lock === "x"){ SW.moved = true; flashEl.classList.add("swiping"); try { flashEl.setPointerCapture(e.pointerId); } catch(_){} } }
+  if (SW.lock !== "x") return;
+  const edge = (dx > 0 && S.idx === 0);                 // 첫 장에서 오른쪽: 고무줄처럼 조금만
+  SW.dx = edge ? dx * 0.25 : dx;
+  flashEl.style.transform = `translateX(${SW.dx}px) rotate(${SW.dx / 40}deg)`;
+});
+function swipeEnd(){
+  if (!SW.on) return; SW.on = false;
+  flashEl.classList.remove("swiping");
+  if (SW.lock !== "x") return;
+  const w = flashEl.offsetWidth, v = Math.abs(SW.dx) / Math.max(1, performance.now() - SW.t);
+  const d = SW.dx < 0 ? 1 : -1, go = (Math.abs(SW.dx) > w * 0.22 || (v > 0.5 && Math.abs(SW.dx) > 30)) && !(d < 0 && S.idx === 0);
+  flashEl.classList.add("settle");
+  if (!go){ flashEl.style.transform = ""; setTimeout(() => flashEl.classList.remove("settle"), 300); return; }
+  SW.busy = true;
+  flashEl.style.transform = `translateX(${-d * w * 1.15}px) rotate(${-d * 8}deg)`; flashEl.style.opacity = "0";
+  setTimeout(() => {
+    flashEl.classList.add("noflip"); flashEl.classList.remove("settle", "flipped");
+    flashEl.style.transform = `translateX(${d * w * 0.35}px)`;
+    bookGo(d, true);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      flashEl.classList.remove("noflip"); flashEl.classList.add("settle"); flashEl.style.transform = ""; flashEl.style.opacity = "";
+      setTimeout(() => { flashEl.classList.remove("settle"); SW.busy = false; }, 300);
+    }));
+  }, 230);
+}
+flashEl.addEventListener("pointerup", swipeEnd);
+flashEl.addEventListener("pointercancel", swipeEnd);
+// 카드 아랫단 버튼: 카드 뒤집기 대신 외웠어요 / 잊었어요 / 아직 알아요
+flashEl.querySelectorAll(".card-foot button").forEach(b => b.addEventListener("click", e => {
+  e.stopPropagation();
+  if (SW.moved){ SW.moved = false; return; }
+  if (SW.busy) return;
+  $({memo:"memoBtn", forgot:"forgotBtn", know:"knowBtn"}[b.dataset.act]).click();
+}));
+flashEl.addEventListener("click", () => {
+  if (SW.moved){ SW.moved = false; return; }
+  if (S.phase === "book" && !SW.busy) flashEl.classList.toggle("flipped");
+});
+// 처음 들어올 때만 잠깐 안내 → 터치하거나 시간이 지나면 서서히 사라짐
+let hintTimer = 0;
+function showSwipeHint(){ const h = $("swipeHint"); clearTimeout(hintTimer); h.classList.add("on"); hintTimer = setTimeout(hideSwipeHint, 2600); }
+function hideSwipeHint(){ clearTimeout(hintTimer); $("swipeHint").classList.remove("on"); }
 $("prevBtn").onclick = () => bookGo(-1);
+$("memoBtn").onclick = () => {
+  const w = S.deck[S.idx]; if (!w) return;
+  if (REC.memo[w.id]) delete REC.memo[w.id]; else REC.memo[w.id] = {t: Date.now(), s: 0};
+  saveRec(); syncMemo(w);
+};
+// 다시 확인 카드: 알면 다음 간격으로, 잊었으면 외웠어요 표시를 풀고 다음 카드로
+$("knowBtn").onclick = () => { const w = S.deck[S.idx], m = REC.memo[w.id];
+  if (m){ m.s++; m.t = Date.now(); } S.due.delete(w.id); saveRec(); bookGo(1); };
+$("forgotBtn").onclick = () => { const w = S.deck[S.idx];
+  delete REC.memo[w.id]; S.due.delete(w.id); saveRec(); alertBox("다시 외울 단어로 돌려놨어요"); bookGo(1); };
+function syncMemo(w){
+  const book = S.phase === "book" && !!w, due = book && S.due && S.due.has(w.id);
+  const on = book && !!REC.memo[w.id];
+  $("flash").classList.toggle("is-memo", on && !due);
+  $("flash").classList.toggle("is-due", !!due);
+  $("screen").classList.toggle("due", !!due);
+  $("memoBtn").setAttribute("aria-pressed", on ? "true" : "false");
+  document.querySelectorAll(".cf-memo").forEach(b => b.setAttribute("aria-pressed", on ? "true" : "false"));
+}
+$("hideMemo").onchange = e => { REC.hideMemo = e.target.checked; saveRec(); };
 
 /* ================= 필기 칸 (손글씨 입력) ================= */
 const cv = $("canvas"), ctx = cv.getContext("2d");
@@ -754,10 +847,16 @@ function recordResult(w, ok){
     if (!L[w.level].includes(w.id)) L[w.level].push(w.id);
     REC[K] = REC[K].filter(x => x !== w.id);
   } else if (!REC[K].includes(w.id)) REC[K].push(w.id);
+  S.unmemo = null;
+  if (!ok && REC.memo[w.id]){          // 외웠다고 표시했는데 틀렸으면 단어장에 다시 나오도록
+    S.unmemo = {id: w.id, m: REC.memo[w.id]}; delete REC.memo[w.id];
+    setTimeout(() => alertBox("틀린 단어라 「외웠어요」 표시를 풀었어요"), 600);
+  }
   saveRec();
 }
 function undoWrong(w){   // 「맞게 썼어요」: 인식 오류 바로잡기
   const L = learnedOf(S.qm), K = wrongKey(S.qm);
+  if (S.unmemo && S.unmemo.id === w.id){ REC.memo[w.id] = S.unmemo.m; S.unmemo = null; }
   REC.ok++;
   if (!L[w.level].includes(w.id)) L[w.level].push(w.id);
   REC[K] = REC[K].filter(x => x !== w.id);
@@ -766,7 +865,7 @@ function undoWrong(w){   // 「맞게 썼어요」: 인식 오류 바로잡기
 
 async function submit(){
   const w = S.deck[S.idx];
-  S.phase = "grading"; syncTools(); $("action").disabled = true; $("action").textContent = "채점 중…";
+  S.phase = "grading"; syncTools(); $("action").disabled = true; setAct("채점 중…");
   await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
   const ok = S.qm === "ko" ? await gradeKorean(w) : await gradeHandwriting(w);
   $("flash").classList.add("flipped");
@@ -871,10 +970,11 @@ function updateUI(){
   const isRv = S.review.has(w.id);
   $("rvTagF").classList.toggle("on", isRv); $("rvTagB").classList.toggle("on", isRv);
   if (S.qm === "test") renderExam(w);
+  syncMemo(w);
   if (S.phase === "book"){
     $("prevBtn").disabled = S.idx === 0;
     $("action").disabled = false;
-    $("action").textContent = S.idx >= S.deck.length - 1 ? "처음부터" : "다음";
+    setAct(S.idx >= S.deck.length - 1 ? "처음부터" : "다음 단어");
     return;
   }
   syncTools();
@@ -890,12 +990,12 @@ function updateUI(){
       <div class="self-btns"><button class="fix-btn" id="selfOk">맞았어요</button><button class="fix-btn" id="selfNg">틀렸어요</button></div>`;
     $("selfOk").onclick = () => finishGrade(w, true);
     $("selfNg").onclick = () => { S.recog = "—"; finishGrade(w, false); };
-    act.textContent = "채점하고 넘어가기"; act.disabled = true;
+    setAct("채점하고 넘어가기"); act.disabled = true;
     return;
   }
   if (S.phase === "answer"){
     v.className = "verdict";
-    act.textContent = S.qm === "test" ? "보기를 고르세요" : "제출"; act.disabled = S.qm === "test" || !S.strokes.length;
+    setAct(S.qm === "test" ? "보기를 고르세요" : "제출"); act.disabled = S.qm === "test" || !S.strokes.length;
   } else {
     const ok = S.marks[S.idx];
     v.className = "verdict show " + (ok ? "ok" : "ng");
@@ -903,11 +1003,13 @@ function updateUI(){
       <div class="s">${ok ? "정답 " : `${S.qm === "test" ? "고른 답" : "인식"} <span class="jp">${esc(S.recog)}</span> · 정답 `}${ok && S.qm === "jp" ? `<span class="jp">${esc(w.word)}</span>` : ansHTML}</div></div>
       ${ok || S.qm === "test" ? "" : `<button class="fix-btn" id="fixBtn">맞게 썼어요</button>`}`;
     if (!ok && S.qm !== "test") $("fixBtn").onclick = () => { S.marks[S.idx] = true; undoWrong(w); stamp(true); updateUI(); };
-    act.textContent = S.idx + 1 < S.deck.length ? (S.qm === "test" ? "다음 문제" : "다음 단어") : "결과 보기";
+    setAct(S.idx + 1 < S.deck.length ? (S.qm === "test" ? "다음 문제" : "다음 단어") : "결과 보기");
     act.disabled = false;
   }
 }
 
+// 다음/제출 버튼 글자만 바꾸기 (단어장의 › 아이콘은 유지)
+function setAct(t){ $("actionLabel").textContent = t; }
 function updateBookBar(fin){
   $("bar").style.width = (fin ? 100 : S.phase === "book" ? (S.idx + 1) / S.deck.length * 100 : (S.idx / S.deck.length) * 100) + "%";
 }
